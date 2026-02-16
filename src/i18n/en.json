@@ -7,6 +7,7 @@
     "title": "Enter Your Birth Details",
     "subtitle": "For an accurate reading based on Eastern wisdom",
     "birthDate": "Birth Date",
+    "birthDateInvalid": "Please enter a valid date (e.g. April has 30 days).",
     "birthDatePlaceholder": "Select date",
     "birthTime": "Birth Time",
     "birthTimeUnknown": "I don't know",

@@ -44,7 +44,7 @@ export async function generateTalismanImage(
     quality: 'standard',
   })
 
-  const imageUrl = response.data[0]?.url
+  const imageUrl = response.data?.[0]?.url
   if (!imageUrl) throw new Error('이미지 생성에 실패했습니다.')
 
   const guideRes = await openai.chat.completions.create({

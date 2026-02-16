@@ -2,7 +2,7 @@
  * Vercel Serverless Function: /api/generate-talisman
  * POST 요청으로 사주 데이터를 받아 AI 부적 이미지를 생성합니다.
  */
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import type { VercelRequest, VercelResponse } from '../vercel'
 import { generateTalismanImage } from './route'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

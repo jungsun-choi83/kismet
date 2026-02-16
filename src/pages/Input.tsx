@@ -23,7 +23,15 @@ export default function Input() {
   const [showCitySuggestions, setShowCitySuggestions] = useState(false)
   const [timeUnknown, setTimeUnknown] = useState(false)
 
-  const canSubmit = birthDate && gender
+  const isValidDate = (dateStr: string): boolean => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    if (Number.isNaN(d.getTime())) return false
+    const [y, m, day] = dateStr.split('-').map(Number)
+    return d.getUTCFullYear() === y && d.getUTCMonth() + 1 === m && d.getUTCDate() === day
+  }
+
+  const canSubmit = birthDate && gender && isValidDate(birthDate)
 
   const handleCityChange = useCallback(async (value: string) => {
     setBirthCity(value)
@@ -51,7 +59,7 @@ export default function Input() {
   }
 
   const handleSubmit = () => {
-    if (!canSubmit) return
+    if (!canSubmit || !isValidDate(birthDate)) return
     const input = {
       birthDate,
       birthTime: timeUnknown ? null : (birthTime ?? null),
@@ -94,6 +102,9 @@ export default function Input() {
               max={today}
               className="w-full bg-[var(--color-tertiary)] rounded-xl px-4 py-3 text-white border border-transparent focus:border-[var(--color-accent)] focus:outline-none transition-colors"
             />
+            {birthDate && !isValidDate(birthDate) && (
+              <p className="text-red-400 text-sm mt-1">{t('onboarding.birthDateInvalid')}</p>
+            )}
           </div>
 
           <div>
