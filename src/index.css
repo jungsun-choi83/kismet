@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* Tailwind v4 Custom Theme */
+@theme {
+  /* Colors */
+  --color-background: #0A0A0F;
+  --color-secondary: #131320;
+  --color-tertiary: #1C1C35;
+  --color-accent: #D4A843;
+  --color-accent-light: #F2D98B;
+  --color-accent-dark: #8B6914;
+  --color-purple: #7B4AE2;
+  --color-purple-light: #A67BFF;
+  --color-purple-dark: #4A2D8A;
+  --color-text: #FFFFFF;
+  --color-text-muted: #A0A0B8;
+  
+  /* Fonts */
+  --font-cinzel: 'Cinzel', serif;
+  --font-inter: 'Inter', sans-serif;
+}
+
+/* Custom gradients */
+.gradient-mystic {
+  background: linear-gradient(135deg, #2a1a4a 0%, #0A0A0F 50%, #0A0A0F 100%);
+}
+
+.gradient-gold {
+  background: linear-gradient(135deg, #D4A843 0%, #F2D98B 50%, #8B6914 100%);
+}
+
+.gradient-card {
+  background: linear-gradient(180deg, #1a1a28 0%, #131320 100%);
+}
+
+/* RTL support - applied when dir="rtl" */
+[dir="rtl"] .rtl\:text-right {
+  text-align: right;
+}
+[dir="rtl"] .rtl\:text-left {
+  text-align: left;
+}
