@@ -43,22 +43,23 @@ export default function Result() {
     
     // Also fetch from Supabase
     if (telegramUser?.id) {
-      supabase
-        .from('users')
-        .select('unlocked_full_reading, unlocked_talisman')
-        .eq('telegram_id', telegramUser.id)
-        .single()
-        .then(({ data }) => {
+      void (async () => {
+        try {
+          const { data } = await supabase
+            .from('users')
+            .select('unlocked_full_reading, unlocked_talisman')
+            .eq('telegram_id', telegramUser.id)
+            .single()
           if (data) {
             setUnlocked({
               fullReading: data.unlocked_full_reading ?? false,
               talisman: data.unlocked_talisman ?? false,
             })
           }
-        })
-        .catch(() => {
+        } catch {
           // Ignore errors
-        })
+        }
+      })()
     }
   }, [sajuResult, telegramUser?.id])
 
