@@ -8,7 +8,113 @@ config()
 
 import type { VercelRequest, VercelResponse } from '../vercel'
 import OpenAI from 'openai'
-import { checkMonthlyBudget, recordUsage, calculateCost } from '../lib/budgetCap'
+
+// Budget cap functions (inline to avoid module resolution issues in Vercel)
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+const MONTHLY_BUDGET_CAP = 50.0
+
+const PRICING = {
+  'gpt-4o': { input: 0.0025 / 1000, output: 0.01 / 1000 },
+  'gpt-4o-mini': { input: 0.00015 / 1000, output: 0.0006 / 1000 },
+  'dall-e-3': { perImage: 0.04 },
+}
+
+function getCurrentMonthYear(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+async function checkMonthlyBudget(): Promise<{ allowed: boolean; currentCost: number; budgetCap: number; isCapped: boolean }> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return { allowed: true, currentCost: 0, budgetCap: MONTHLY_BUDGET_CAP, isCapped: false }
+  }
+  try {
+    const monthYear = getCurrentMonthYear()
+    const url = `${SUPABASE_URL}/rest/v1/monthly_budget?month_year=eq.${monthYear}&select=total_cost_usd,budget_cap_usd,is_capped`
+    const res = await fetch(url, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    })
+    if (!res.ok) return { allowed: true, currentCost: 0, budgetCap: MONTHLY_BUDGET_CAP, isCapped: false }
+    const rows = (await res.json()) as { total_cost_usd?: number; budget_cap_usd?: number; is_capped?: boolean }[]
+    const row = rows[0]
+    const currentCost = Number(row?.total_cost_usd ?? 0)
+    const budgetCap = Number(row?.budget_cap_usd ?? MONTHLY_BUDGET_CAP)
+    const isCapped = row?.is_capped ?? false
+    if (currentCost >= budgetCap || isCapped) {
+      return { allowed: false, currentCost, budgetCap, isCapped: true }
+    }
+    return { allowed: true, currentCost, budgetCap, isCapped: false }
+  } catch {
+    return { allowed: true, currentCost: 0, budgetCap: MONTHLY_BUDGET_CAP, isCapped: false }
+  }
+}
+
+function calculateCost(model: 'gpt-4o' | 'gpt-4o-mini' | 'dall-e-3', tokensInput?: number, tokensOutput?: number): number {
+  if (model === 'dall-e-3') return PRICING['dall-e-3'].perImage
+  const pricing = PRICING[model]
+  if (!pricing) return 0
+  return (tokensInput ?? 0) * pricing.input + (tokensOutput ?? 0) * pricing.output
+}
+
+async function recordUsage(
+  model: 'gpt-4o' | 'gpt-4o-mini' | 'dall-e-3',
+  cost: number,
+  telegramUserId?: number,
+  tokensInput?: number,
+  tokensOutput?: number
+): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return
+  try {
+    const monthYear = getCurrentMonthYear()
+    await fetch(`${SUPABASE_URL}/rest/v1/api_usage_log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({
+        telegram_user_id: telegramUserId ?? null,
+        model,
+        cost_usd: cost,
+        tokens_input: tokensInput ?? null,
+        tokens_output: tokensOutput ?? null,
+        month_year: monthYear,
+        is_free_user: false,
+      }),
+    })
+    const checkUrl = `${SUPABASE_URL}/rest/v1/monthly_budget?month_year=eq.${monthYear}&select=total_cost_usd,usage_count,is_capped`
+    const checkRes = await fetch(checkUrl, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    })
+    let currentCost = 0
+    let usageCount = 0
+    let isCapped = false
+    if (checkRes.ok) {
+      const rows = (await checkRes.json()) as { total_cost_usd?: number; usage_count?: number; is_capped?: boolean }[]
+      const row = rows[0]
+      currentCost = Number(row?.total_cost_usd ?? 0)
+      usageCount = Number(row?.usage_count ?? 0)
+      isCapped = row?.is_capped ?? false
+    }
+    const newCost = currentCost + cost
+    const newUsageCount = usageCount + 1
+    const budgetCap = MONTHLY_BUDGET_CAP
+    const shouldCap = newCost >= budgetCap && !isCapped
+    await fetch(`${SUPABASE_URL}/rest/v1/monthly_budget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        month_year: monthYear,
+        total_cost_usd: newCost,
+        usage_count: newUsageCount,
+        budget_cap_usd: budgetCap,
+        is_capped: shouldCap,
+        capped_at: shouldCap ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }),
+    })
+  } catch {
+    // Don't throw - usage tracking failure shouldn't block the request
+  }
+}
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -77,8 +183,8 @@ export async function generateTalismanImage(
   const guideTokensOutput = guideRes.usage?.completion_tokens
   const guideCost = calculateCost('gpt-4o-mini', guideTokensInput, guideTokensOutput)
 
-  await recordUsage('dall-e-3', dallECost, telegramUserId, undefined, undefined, false)
-  await recordUsage('gpt-4o-mini', guideCost, telegramUserId, guideTokensInput, guideTokensOutput, false)
+  await recordUsage('dall-e-3', dallECost, telegramUserId, undefined, undefined)
+  await recordUsage('gpt-4o-mini', guideCost, telegramUserId, guideTokensInput, guideTokensOutput)
 
   return { imageUrl, guide }
 }
