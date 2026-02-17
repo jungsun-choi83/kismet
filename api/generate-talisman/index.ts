@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       sajuResult ?? {},
       wish ?? '',
       style ?? 'traditional',
-      telegramUserId ?? undefined
+      telegramUserId
     )
     res.status(200).json(result)
   } catch (e) {
