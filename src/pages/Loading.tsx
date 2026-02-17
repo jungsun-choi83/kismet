@@ -58,11 +58,21 @@ export default function Loading() {
       return
     }
 
+    const saveSaju = (saju: SajuResult) => {
+      fetch('/api/save-saju', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_user_id: telegramUser.id, saju_result: saju }),
+      }).catch(() => {})
+    }
+
     if (isDemoMode) {
       const timer = setTimeout(() => {
         setProgress(100)
         try {
-          setSajuResult(buildDemoSaju(userInput))
+          const saju = buildDemoSaju(userInput)
+          setSajuResult(saju)
+          saveSaju(saju)
         } catch {
           setError('Invalid date. Please check your birth details.')
           return
@@ -82,7 +92,9 @@ export default function Loading() {
       .then((data: unknown) => {
         clearTimeout(timeout)
         setProgress(100)
-        setSajuResult(data as SajuResult)
+        const saju = data as SajuResult
+        setSajuResult(saju)
+        saveSaju(saju)
         setTimeout(() => navigate('/result'), 500)
       })
       .catch((err) => {

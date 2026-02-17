@@ -2,9 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store'
-import { callGenerateTalisman } from '@/lib/api'
-import { callGenerateTalismanApi } from '@/lib/generateTalismanApi'
-import { isDemoMode } from '@/lib/supabase'
 
 const DEFAULT_GUIDE = 'Keep this talisman as your phone wallpaper or in a visible place. Meditate on your wish while viewing it to amplify its energy.'
 
@@ -18,32 +15,48 @@ export default function TalismanResult() {
   const [imageVisible, setImageVisible] = useState(false)
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const isPaid = urlParams.get('paid') === '1'
+
+    if (isPaid && telegramUser?.id) {
+      setLoading(true)
+      fetch(`/api/talisman-result?telegram_user_id=${telegramUser.id}`)
+        .then((r) => r.json())
+        .then((data: { result_url?: string; wish?: string; style?: string }) => {
+          if (data.result_url) {
+            setTalismanResult({
+              imageUrl: data.result_url,
+              wish: data.wish ?? 'blessing',
+              style: data.style ?? 'traditional',
+              guide: DEFAULT_GUIDE,
+            })
+            requestAnimationFrame(() => setImageVisible(true))
+          } else {
+            setError('Talisman not found')
+          }
+        })
+        .catch(() => setError('Failed to load talisman'))
+        .finally(() => setLoading(false))
+      return
+    }
+
+    // 결제 없이는 부적 생성 불가 - 항상 결제 필요
+    if (!isPaid) {
+      setError('Please purchase a talisman first.')
+      setTimeout(() => navigate('/talisman'), 2000)
+      return
+    }
+
     if (!sajuResult || !talismanWish || !talismanStyle || !telegramUser) {
       navigate('/talisman')
       return
     }
 
-    const doGenerate = (fn: () => Promise<{ imageUrl: string; guide: string }>) => {
-      fn()
-        .then(({ imageUrl, guide }) => {
-          setTalismanResult({
-            imageUrl,
-            wish: talismanWish,
-            style: talismanStyle,
-            guide: guide ?? DEFAULT_GUIDE,
-          })
-          requestAnimationFrame(() => setImageVisible(true))
-        })
-        .catch((e) => setError(typeof e === 'object' && e && 'message' in e ? String((e as Error).message) : String(e ?? 'Generation failed')))
-        .finally(() => setLoading(false))
-    }
-
-    if (isDemoMode) {
-      doGenerate(() => callGenerateTalismanApi(sajuResult, talismanWish, talismanStyle))
+    // 결제된 부적만 표시 - DB에서 가져오기
+    if (isPaid && telegramUser?.id) {
+      // 이미 위에서 처리됨 (24-43줄)
       return
     }
-
-    doGenerate(() => callGenerateTalisman(sajuResult, talismanWish, talismanStyle, telegramUser.id))
   }, [sajuResult, talismanWish, talismanStyle, telegramUser, setTalismanResult, navigate])
 
   const handleSave = () => {
@@ -55,15 +68,16 @@ export default function TalismanResult() {
   }
 
   const handleShare = () => {
-    const win = window as unknown as { Telegram?: { WebApp?: { switchInlineQuery?: (query: string, chats?: string[]) => void } } }
-    const text = t('talismanResult.shareText')
+    const win = window as unknown as { Telegram?: { WebApp?: { switchInlineQuery?: (query: string) => void } } }
+    const appLink = 'https://t.me/kismet_saju_bot/app'
+    const text = t('talismanResult.shareText') + ' ' + appLink
     if (win.Telegram?.WebApp?.switchInlineQuery) {
       win.Telegram.WebApp.switchInlineQuery(text)
     } else {
       navigator.share?.({
         title: 'KISMET Talisman',
         text,
-        url: talismanResult?.imageUrl,
+        url: appLink,
       }).catch(() => {})
     }
   }
@@ -71,8 +85,18 @@ export default function TalismanResult() {
   if (loading) {
     return (
       <div className="min-h-screen gradient-mystic flex flex-col items-center justify-center px-6">
-        <div className="w-64 h-64 bg-[var(--color-secondary)] rounded-2xl animate-pulse flex items-center justify-center mb-6 border-2 border-[var(--color-purple)]/50">
-          <span className="text-4xl animate-pulse">🔮</span>
+        <div className="w-64 h-64 flex items-center justify-center mb-6 relative">
+          <div className="absolute inset-0 rounded-full border-2 border-[var(--color-accent)]/40 animate-spin" style={{ animationDuration: '4s' }} />
+          <div className="absolute inset-4 rounded-full border-2 border-[var(--color-purple)]/40 animate-spin" style={{ animationDuration: '3s', animationDirection: 'reverse' }} />
+          <div className="w-28 h-28 rounded-full bg-[var(--color-secondary)]/80 flex items-center justify-center border-2 border-[var(--color-accent)]/50">
+            <svg viewBox="0 0 100 100" className="w-20 h-20 text-[var(--color-accent)] animate-spin" style={{ animationDuration: '6s' }}>
+              <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.6" />
+              <circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+              <path fill="none" stroke="currentColor" strokeWidth="2" opacity="0.8" d="M50 5 Q80 50 50 95 Q20 50 50 5" />
+              <circle cx="50" cy="28" r="6" fill="currentColor" opacity="0.9" />
+              <circle cx="50" cy="72" r="6" fill="currentColor" opacity="0.9" />
+            </svg>
+          </div>
         </div>
         <p className="text-[var(--color-text-muted)]">{t('talismanResult.creating')}</p>
       </div>

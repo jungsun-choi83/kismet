@@ -9,6 +9,10 @@ import Loading from '@/pages/Loading'
 import Result from '@/pages/Result'
 import Talisman from '@/pages/Talisman'
 import TalismanResult from '@/pages/TalismanResult'
+import ReportResult from '@/pages/ReportResult'
+import CoupleCompatibility from '@/pages/CoupleCompatibility'
+import CoupleResult from '@/pages/CoupleResult'
+import MonthlyFortune from '@/pages/MonthlyFortune'
 
 function MockUserProvider({ children }: { children: React.ReactNode }) {
   const setTelegramUser = useAppStore((s) => s.setTelegramUser)
@@ -44,6 +48,10 @@ function AppContent() {
         <Route path="/result" element={<Result />} />
         <Route path="/talisman" element={<Talisman />} />
         <Route path="/talisman/result" element={<TalismanResult />} />
+        <Route path="/couple" element={<CoupleCompatibility />} />
+        <Route path="/couple/result" element={<CoupleResult />} />
+        <Route path="/monthly-fortune" element={<MonthlyFortune />} />
+        <Route path="/report/result" element={<ReportResult />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

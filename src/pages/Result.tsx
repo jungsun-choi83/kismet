@@ -1,36 +1,66 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store'
 import { STEM_EN, BRANCH_ELEMENT } from '@/lib/bazi'
+import { supabase } from '@/lib/supabase'
 
+// 오행 색상: 목=초록, 화=빨강, 토=노랑, 금=흰색, 수=검정
 const ELEMENT_COLORS: Record<string, string> = {
-  wood: 'text-green-400',
-  fire: 'text-red-400',
+  wood: 'text-green-500',
+  fire: 'text-red-500',
   earth: 'text-yellow-400',
-  metal: 'text-amber-600',
-  water: 'text-blue-400',
+  metal: 'text-white',
+  water: 'text-slate-300',
 }
 const ELEMENT_BG: Record<string, string> = {
-  wood: 'bg-green-400/20',
-  fire: 'bg-red-400/20',
-  earth: 'bg-yellow-400/20',
-  metal: 'bg-amber-600/20',
-  water: 'bg-blue-400/20',
+  wood: 'bg-green-500/25',
+  fire: 'bg-red-500/25',
+  earth: 'bg-yellow-400/25',
+  metal: 'bg-white/20',
+  water: 'bg-slate-600/40',
 }
 const ELEMENT_ICONS: Record<string, string> = {
-  wood: '🌳',
-  fire: '🔥',
-  earth: '⛰️',
-  metal: '⚙️',
-  water: '💧',
+  wood: '木',
+  fire: '火',
+  earth: '土',
+  metal: '金',
+  water: '水',
 }
 
 export default function Result() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const sajuResult = useAppStore((s) => s.sajuResult)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const telegramUser = useAppStore((s) => s.telegramUser)
+  const [unlocked, setUnlocked] = useState<{ fullReading?: boolean; talisman?: boolean }>({})
+
+  useEffect(() => {
+    // Check if user has unlocked features from DB
+    if (sajuResult?.unlocked) {
+      setUnlocked(sajuResult.unlocked)
+    }
+    
+    // Also fetch from Supabase
+    if (telegramUser?.id) {
+      supabase
+        .from('users')
+        .select('unlocked_full_reading, unlocked_talisman')
+        .eq('telegram_id', telegramUser.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setUnlocked({
+              fullReading: data.unlocked_full_reading ?? false,
+              talisman: data.unlocked_talisman ?? false,
+            })
+          }
+        })
+        .catch(() => {
+          // Ignore errors
+        })
+    }
+  }, [sajuResult, telegramUser?.id])
 
   if (!sajuResult) {
     navigate('/')
@@ -39,6 +69,7 @@ export default function Result() {
 
   const { fourPillars, fiveElements, categories, luckyColor, luckyNumber, overallReading } =
     sajuResult
+  const hasFullReading = unlocked.fullReading ?? false
 
   const categoryKeys = ['wealth', 'love', 'career', 'health'] as const
   const categoryEmojis = { wealth: '💰', love: '❤️', career: '💼', health: '🏥' }
@@ -50,6 +81,7 @@ export default function Result() {
           {t('result.title')}
         </h1>
 
+        {/* Four Pillars - FREE */}
         <div className="bg-[var(--color-secondary)] rounded-2xl p-4 mb-6">
           <h2 className="text-sm text-[var(--color-text-muted)] mb-3">
             {t('result.fourPillars')}
@@ -95,6 +127,7 @@ export default function Result() {
           </div>
         </div>
 
+        {/* Day Master - FREE */}
         <div className="bg-[var(--color-accent)]/20 rounded-2xl p-4 mb-6 border border-[var(--color-accent)]/40">
           <h2 className="text-xs text-[var(--color-accent)] font-medium mb-1">
             {t('result.dayMaster')}
@@ -108,6 +141,7 @@ export default function Result() {
           </p>
         </div>
 
+        {/* Five Elements - FREE */}
         <div className="bg-[var(--color-secondary)] rounded-2xl p-4 mb-6">
           <h2 className="text-sm text-[var(--color-text-muted)] mb-3">
             {t('result.fiveElements')}
@@ -125,14 +159,14 @@ export default function Result() {
                     <div
                       className={`h-full transition-all duration-700 ${
                         el === 'wood'
-                          ? 'bg-green-400'
+                          ? 'bg-green-500'
                           : el === 'fire'
-                            ? 'bg-red-400'
+                            ? 'bg-red-500'
                             : el === 'earth'
                               ? 'bg-yellow-400'
                               : el === 'metal'
-                                ? 'bg-amber-700'
-                                : 'bg-blue-400'
+                                ? 'bg-white'
+                                : 'bg-slate-600'
                       }`}
                       style={{ width: `${pct}%` }}
                     />
@@ -143,49 +177,62 @@ export default function Result() {
           </div>
         </div>
 
+        {/* Overall Reading - FREE */}
         <p className="text-[var(--color-text-muted)] text-sm mb-6 leading-relaxed">
           {overallReading}
         </p>
 
+        {/* Categories with Blur Paywall */}
         <div className="space-y-2 mb-6">
           {categoryKeys.map((key) => {
             const cat = categories[key]
             const score = cat?.score ?? 0
-            const isOpen = expanded === key
+            const detailText = cat?.detail || cat?.text || ''
+            const isUnlocked = hasFullReading
+            
             return (
               <div
                 key={key}
-                className="bg-[var(--color-secondary)] rounded-xl overflow-hidden"
+                className="bg-[var(--color-secondary)] rounded-xl overflow-hidden relative"
               >
-                <button
-                  onClick={() => setExpanded(isOpen ? null : key)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left"
-                >
-                  <span className="flex items-center gap-2">
-                    <span>{categoryEmojis[key]}</span>
-                    <span>{t(`result.${key}`)}</span>
-                  </span>
-                  <span className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <span
-                        key={i}
-                        className={i <= score ? 'text-[var(--color-accent)]' : 'text-[var(--color-tertiary)]'}
-                      >
-                        ★
-                      </span>
-                    ))}
-                  </span>
-                </button>
-                {isOpen && cat?.text && (
-                  <div className="px-4 pb-4 pt-0 text-sm text-[var(--color-text-muted)] border-t border-[var(--color-tertiary)]">
-                    {cat.text}
+                <div className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="flex items-center gap-2">
+                      <span>{categoryEmojis[key]}</span>
+                      <span>{t(`result.${key}`)}</span>
+                    </span>
+                    <span className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <span
+                          key={i}
+                          className={i <= score ? 'text-[var(--color-accent)]' : 'text-[var(--color-tertiary)]'}
+                        >
+                          ★
+                        </span>
+                      ))}
+                    </span>
                   </div>
-                )}
+                  
+                  {/* Detail text with blur effect */}
+                  {detailText && (
+                    <div className="relative">
+                      <div className={`text-sm text-[var(--color-text-muted)] ${isUnlocked ? '' : 'blur-sm opacity-60'}`}>
+                        {detailText}
+                      </div>
+                      {!isUnlocked && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <span className="text-xs text-[var(--color-accent)]">🔒</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
 
+        {/* Lucky Color & Number - FREE */}
         <div className="flex gap-4 justify-center mb-6">
           <div className="bg-[var(--color-secondary)] rounded-xl px-4 py-3">
             <p className="text-xs text-[var(--color-text-muted)]">{t('result.luckyColor')}</p>
@@ -197,13 +244,360 @@ export default function Result() {
           </div>
         </div>
 
+        {/* Premium Products Cards */}
+        <div className="space-y-3 mb-6">
+          {/* Card 1: Full Reading */}
+          <ProductCard
+            emoji="📖"
+            title="Full Reading"
+            price={150}
+            priceUsd="≈ $3"
+            description="Unlock detailed fortune analysis for Wealth, Love, Career & Health + 2025 yearly forecast"
+            buttonText="Unlock Full Reading"
+            product="full_reading"
+            telegramUser={telegramUser}
+            onSuccess={() => {
+              setUnlocked({ ...unlocked, fullReading: true })
+              // Refresh page to show unlocked content
+              window.location.reload()
+            }}
+          />
+
+          {/* Card 2: Personal Talisman */}
+          <ProductCard
+            emoji="🔮"
+            title="Personal Talisman"
+            price={250}
+            priceUsd="≈ $5"
+            description="AI-generated talisman based on YOUR Four Pillars & Five Elements"
+            buttonText="Get My Talisman"
+            product="personal_talisman"
+            telegramUser={telegramUser}
+            onSuccess={() => {
+              navigate('/talisman/result?paid=1')
+            }}
+            borderStyle="gradient"
+          />
+
+          {/* Card 3: Premium Bundle - MOST PROMINENT */}
+          <div className="relative">
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
+              <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs font-bold px-3 py-1 rounded-full">
+                BEST VALUE
+              </span>
+            </div>
+            <ProductCard
+              emoji="✨"
+              title="Premium Bundle"
+              price={350}
+              priceUsd="≈ $7"
+              originalPrice={400}
+              description="Full Reading + Personal Talisman — Save 50⭐"
+              buttonText="Get Premium Bundle"
+              product="premium_bundle"
+              telegramUser={telegramUser}
+              onSuccess={() => {
+                setUnlocked({ fullReading: true, talisman: true })
+                navigate('/talisman/result?paid=1')
+              }}
+              borderStyle="gold"
+              highlight
+            />
+          </div>
+        </div>
+
+        {/* Premium Content (if unlocked) */}
+        {hasFullReading && sajuResult.yearlyFortune && (
+          <div className="bg-[var(--color-secondary)] rounded-2xl p-4 mb-6">
+            <h2 className="text-sm text-[var(--color-accent)] font-medium mb-2">Yearly Fortune 2025</h2>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-line">
+              {sajuResult.yearlyFortune}
+            </p>
+          </div>
+        )}
+
+        {hasFullReading && sajuResult.bestMonths && sajuResult.bestMonths.length > 0 && (
+          <div className="bg-[var(--color-secondary)] rounded-2xl p-4 mb-6">
+            <h2 className="text-sm text-[var(--color-accent)] font-medium mb-2">Best Months</h2>
+            <div className="space-y-2">
+              {sajuResult.bestMonths.map((m, i) => (
+                <div key={i} className="text-sm text-[var(--color-text-muted)]">
+                  <span className="font-medium">{m.month}</span>: {m.reason}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {hasFullReading && sajuResult.cautionMonths && sajuResult.cautionMonths.length > 0 && (
+          <div className="bg-[var(--color-secondary)] rounded-2xl p-4 mb-6">
+            <h2 className="text-sm text-[var(--color-accent)] font-medium mb-2">Watch Out</h2>
+            <div className="space-y-2">
+              {sajuResult.cautionMonths.map((m, i) => (
+                <div key={i} className="text-sm text-[var(--color-text-muted)]">
+                  <span className="font-medium">{m.month}</span>: {m.reason}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Share Button */}
+        <ResultShareButton sajuResult={sajuResult} />
+
+        {/* Cross-promotion Banners */}
+        <div className="space-y-2 mt-6">
+          <CrossPromoBanner
+            emoji="🌙"
+            text="What did you dream last night? Try @OneiroBot"
+            link="https://t.me/OneiroBot"
+          />
+          <CrossPromoBanner
+            emoji="⚡"
+            text="Design your perfect tattoo — Try @SigilBot"
+            link="https://t.me/SigilBot"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProductCard({
+  emoji,
+  title,
+  price,
+  priceUsd,
+  originalPrice,
+  description,
+  buttonText,
+  product,
+  telegramUser,
+  onSuccess,
+  borderStyle = 'normal',
+  highlight = false,
+}: {
+  emoji: string
+  title: string
+  price: number
+  priceUsd: string
+  originalPrice?: number
+  description: string
+  buttonText: string
+  product: string
+  telegramUser: { id: number } | null
+  onSuccess: () => void
+  borderStyle?: 'normal' | 'gradient' | 'gold'
+  highlight?: boolean
+}) {
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const handleBuy = async () => {
+    console.log('ProductCard: handleBuy called for product:', product)
+    const tg = (window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void } } }).Telegram?.WebApp
+    if (!telegramUser?.id || !tg?.openInvoice) {
+      console.error('ProductCard: Missing telegramUser or openInvoice')
+      setErr('Open from Telegram to purchase.')
+      return
+    }
+    setLoading(true)
+    setErr(null)
+    try {
+      console.log('ProductCard: Creating invoice for product:', product)
+      const res = await fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramUserId: telegramUser.id, product }),
+      })
+      const data = await res.json() as { invoiceLink?: string; error?: string }
+      console.log('ProductCard: Invoice response:', data)
+      if (!data.invoiceLink) {
+        setErr(data.error ?? 'Failed')
+        setLoading(false)
+        return
+      }
+      
+      console.log('ProductCard: Opening invoice:', data.invoiceLink)
+      tg.openInvoice(data.invoiceLink, async (status) => {
+        console.log('ProductCard: Payment status:', status)
+        if (status === 'paid') {
+          // Payment successful - but webhook might not have arrived yet
+          // Poll database to confirm payment was processed
+          // Note: We poll by user_id + product since charge_id isn't available until webhook arrives
+          let attempts = 0
+          const maxAttempts = 10
+          const pollInterval = 1000 // 1 second
+          
+          const pollPayment = async (): Promise<void> => {
+            try {
+              // Check if payment exists in DB (webhook has processed it)
+              // We check by user_id + product since charge_id isn't available yet
+              const checkRes = await fetch('/api/check-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  telegram_user_id: telegramUser.id,
+                  product, // Use product to find recent payment for this user
+                }),
+              })
+              
+              const checkData = await checkRes.json() as { paid?: boolean; status?: string }
+              
+              if (checkData.paid) {
+                // Payment confirmed in database - webhook has processed it
+                onSuccess()
+                return
+              }
+              
+              if (attempts < maxAttempts) {
+                attempts++
+                await new Promise(resolve => setTimeout(resolve, pollInterval))
+                return pollPayment()
+              }
+              
+              // Max attempts reached - still call onSuccess as payment was confirmed by Telegram
+              // Webhook will process it eventually and unlock features
+              console.warn('Payment confirmed by Telegram but not yet in database. Webhook will process it.')
+              onSuccess()
+            } catch (e) {
+              console.error('Error polling payment status:', e)
+              // Still call onSuccess as Telegram confirmed payment
+              // Webhook will process it eventually
+              onSuccess()
+            }
+          }
+          
+          // Start polling
+          await pollPayment()
+        } else {
+          setLoading(false)
+          if (status === 'failed' || status === 'cancelled') {
+            setErr('Payment was cancelled or failed.')
+          }
+        }
+      })
+    } catch (e) {
+      setErr((e as Error).message)
+      setLoading(false)
+    }
+  }
+
+  const borderClass =
+    borderStyle === 'gradient'
+      ? 'border-2 border-transparent bg-gradient-to-r from-yellow-400/50 to-orange-500/50 p-[2px] rounded-xl'
+      : borderStyle === 'gold'
+        ? highlight
+          ? 'bg-gradient-to-br from-yellow-400/30 to-orange-500/30 border-2 border-yellow-400/60'
+          : 'border-2 border-yellow-400/40'
+        : 'border border-[var(--color-accent)]/40'
+
+  return (
+    <div className={`rounded-xl ${borderClass} ${highlight ? 'p-4' : 'p-[2px]'}`}>
+      <div className={`bg-[var(--color-secondary)] rounded-xl ${highlight ? '' : 'p-4'}`}>
+        {err && <p className="text-red-400 text-xs mb-2 text-center">{err}</p>}
+        <div className="flex items-start gap-3 mb-3">
+          <span className="text-2xl">{emoji}</span>
+          <div className="flex-1">
+            <h3 className="font-semibold text-[var(--color-accent)] mb-1">{title}</h3>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-lg font-bold text-[var(--color-accent)]">
+                ⭐ {price} Stars
+              </span>
+              {originalPrice && (
+                <>
+                  <span className="text-xs text-[var(--color-text-muted)] line-through">
+                    {originalPrice} Stars
+                  </span>
+                  <span className="text-xs text-green-400 font-medium">Save 50⭐!</span>
+                </>
+              )}
+              <span className="text-xs text-[var(--color-text-muted)]">{priceUsd}</span>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+              {description}
+            </p>
+          </div>
+        </div>
         <button
-          onClick={() => navigate('/talisman')}
-          className="w-full py-4 rounded-full gradient-gold text-black font-semibold"
+          type="button"
+          onClick={handleBuy}
+          disabled={loading}
+          className="w-full py-3 rounded-full gradient-gold text-black font-semibold disabled:opacity-50"
         >
-          {t('result.getTalisman')}
+          {loading ? 'Loading...' : buttonText}
         </button>
       </div>
     </div>
+  )
+}
+
+function CrossPromoBanner({ emoji, text, link }: { emoji: string; text: string; link: string }) {
+  const handleClick = () => {
+    const tg = (window as unknown as { Telegram?: { WebApp?: { openTelegramLink?: (url: string) => void } } }).Telegram?.WebApp
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(link)
+    } else {
+      window.open(link, '_blank')
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="w-full bg-[var(--color-secondary)] border border-[var(--color-accent)]/10 rounded-xl px-4 py-3 flex items-center justify-between hover:bg-[var(--color-tertiary)] transition-colors"
+    >
+      <span className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
+        <span>{emoji}</span>
+        <span>{text}</span>
+      </span>
+      <span className="text-xs text-[var(--color-accent)]">Try →</span>
+    </button>
+  )
+}
+
+function ResultShareButton({ sajuResult }: { sajuResult: { categories: { wealth?: { score?: number }; love?: { score?: number }; career?: { score?: number }; health?: { score?: number } }; overallReading?: string } }) {
+  const handleShare = () => {
+    const win = window as unknown as {
+      Telegram?: { WebApp?: { switchInlineQuery?: (query: string) => void; openTelegramLink?: (url: string) => void } }
+    }
+    
+    const wealthStars = '⭐'.repeat(sajuResult.categories.wealth?.score ?? 0) + '☆'.repeat(5 - (sajuResult.categories.wealth?.score ?? 0))
+    const loveStars = '⭐'.repeat(sajuResult.categories.love?.score ?? 0) + '☆'.repeat(5 - (sajuResult.categories.love?.score ?? 0))
+    const careerStars = '⭐'.repeat(sajuResult.categories.career?.score ?? 0) + '☆'.repeat(5 - (sajuResult.categories.career?.score ?? 0))
+    const healthStars = '⭐'.repeat(sajuResult.categories.health?.score ?? 0) + '☆'.repeat(5 - (sajuResult.categories.health?.score ?? 0))
+    
+    const essence = sajuResult.overallReading?.split('.')[0] || 'Your destiny awaits'
+    
+    const shareText = `🔮 My Saju Fortune says:
+✨ ${essence}
+💰 Wealth: ${wealthStars}
+❤️ Love: ${loveStars}
+📈 Career: ${careerStars}
+🏥 Health: ${healthStars}
+
+Get your FREE Saju reading → @KismetBot
+What's YOUR destiny? 🔮`
+
+    const botLink = 'https://t.me/kismet_saju_bot'
+    
+    if (win.Telegram?.WebApp?.switchInlineQuery) {
+      win.Telegram.WebApp.switchInlineQuery(shareText)
+    } else if (win.Telegram?.WebApp?.openTelegramLink) {
+      win.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(botLink)}&text=${encodeURIComponent(shareText)}`)
+    } else {
+      navigator.clipboard?.writeText(shareText).then(() => alert('Share text copied!'))
+    }
+  }
+  
+  return (
+    <button
+      type="button"
+      onClick={handleShare}
+      className="w-full py-3 rounded-full border-2 border-[var(--color-accent)] text-[var(--color-accent)] font-medium hover:bg-[var(--color-accent)]/10 transition-colors mb-3"
+    >
+      Share with Friends
+    </button>
   )
 }

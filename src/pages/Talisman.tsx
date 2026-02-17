@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store'
-import { callCreateInvoice } from '@/lib/api'
-import { supabase, isDemoMode } from '@/lib/supabase'
 
 const WISHES = ['wealth', 'love', 'career', 'protection', 'examSuccess', 'health'] as const
 const STYLES = [
@@ -16,93 +14,133 @@ const STYLES = [
 export default function Talisman() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { telegramUser, setFreeTrialUsed, setTalismanSelection } =
-    useAppStore()
+  const { telegramUser, setTalismanSelection } = useAppStore()
   const [wish, setWish] = useState<string | null>(null)
   const [style, setStyle] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isFree, setIsFree] = useState(true)
-
-  useEffect(() => {
-    if (isDemoMode) {
-      setIsFree(true)
-      return
-    }
-    if (!telegramUser?.id) return
-    void (async () => {
-      try {
-        const { data } = await supabase.from('users').select('free_trial_used').eq('telegram_id', telegramUser.id).single()
-        setIsFree(!data?.free_trial_used)
-      } catch {
-        setIsFree(true)
-      }
-    })()
-  }, [telegramUser?.id])
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
 
   const canGenerate = wish && style
 
   const handleGenerate = async () => {
-    if (!canGenerate || !telegramUser) return
+    if (!canGenerate || !telegramUser) {
+      setError('Please select a wish and style.')
+      return
+    }
+    
+    const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void } } }
+    const tg = win.Telegram?.WebApp
+    
+    if (!tg?.openInvoice) {
+      setError('Please open this app from Telegram to purchase.')
+      return
+    }
+    
     setLoading(true)
     setError(null)
-
+    setDebugInfo([])
+    
     try {
-      if (isFree) {
-        setTalismanSelection(wish, style)
-        setFreeTrialUsed(true)
-        navigate('/talisman/result')
-        return
-      }
-
-      const win = window as unknown as { Telegram?: { WebApp?: { showConfirm?: (msg: string) => Promise<boolean> | boolean; openInvoice?: (url: string, cb: (status: string) => void) => void } } }
-      const tg = win.Telegram?.WebApp
-      const confirmMsg = 'Confirm payment of 50 Stars?'
-
-      const showPaymentConfirm = async () => {
-        if (tg?.showConfirm) return Promise.resolve(tg.showConfirm(confirmMsg))
-        return Promise.resolve(window.confirm(confirmMsg))
-      }
-
-      if (isDemoMode || !tg?.openInvoice) {
-        const ok = await showPaymentConfirm()
-        setLoading(false)
-        if (ok) {
-          setTalismanSelection(wish, style)
-          navigate('/talisman/result')
-        }
-        return
-      }
-
-      const ok = await showPaymentConfirm()
-      if (!ok) {
+      const debugMsg1 = 'Creating invoice for personal_talisman...'
+      console.log(debugMsg1)
+      setDebugInfo([debugMsg1])
+      
+      const res = await fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramUserId: telegramUser.id,
+          product: 'personal_talisman',
+          wish: wish!,
+          style: style!,
+        }),
+      })
+      
+      const data = await res.json() as { invoiceLink?: string; error?: string }
+      
+      const debugMsg2 = `Invoice response: ${JSON.stringify(data)}`
+      console.log(debugMsg2)
+      setDebugInfo([debugMsg1, debugMsg2])
+      
+      if (!data.invoiceLink) {
+        const errorMsg = data.error ?? 'Failed to create invoice. Please try again.'
+        setError(errorMsg)
+        setDebugInfo([debugMsg1, debugMsg2, `ERROR: ${errorMsg}`])
         setLoading(false)
         return
       }
-
-      const { invoiceLink } = await callCreateInvoice(
-        telegramUser.id,
-        'talisman',
-        wish,
-        style
-      )
-      tg.openInvoice(invoiceLink, (status) => {
-        setLoading(false)
+      
+      const debugMsg3 = `Opening invoice: ${data.invoiceLink}`
+      console.log(debugMsg3)
+      setDebugInfo([debugMsg1, debugMsg2, debugMsg3])
+      
+      tg.openInvoice(data.invoiceLink, async (status) => {
+        const debugMsg4 = `Payment status: ${status}`
+        console.log(debugMsg4)
+        setDebugInfo([debugMsg1, debugMsg2, debugMsg3, debugMsg4])
+        
         if (status === 'paid') {
-          setTalismanSelection(wish, style)
-          navigate('/talisman/result')
+          let attempts = 0
+          const maxAttempts = 10
+          const pollInterval = 1000
+          
+          const pollPayment = async (): Promise<void> => {
+            try {
+              const checkRes = await fetch('/api/check-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  telegram_user_id: telegramUser.id,
+                  product: 'personal_talisman',
+                }),
+              })
+              
+              const checkData = await checkRes.json() as { paid?: boolean; status?: string }
+              
+              if (checkData.paid) {
+                setTalismanSelection(wish!, style!)
+                navigate('/talisman/result?paid=1')
+                return
+              }
+              
+              if (attempts < maxAttempts) {
+                attempts++
+                await new Promise(resolve => setTimeout(resolve, pollInterval))
+                return pollPayment()
+              }
+              
+              console.warn('Payment confirmed by Telegram but not yet in database. Webhook will process it.')
+              setTalismanSelection(wish!, style!)
+              navigate('/talisman/result?paid=1')
+            } catch (e) {
+              console.error('Error polling payment status:', e)
+              setTalismanSelection(wish!, style!)
+              navigate('/talisman/result?paid=1')
+            }
+          }
+          
+          await pollPayment()
         } else {
-          setError('Payment was cancelled or failed.')
+          setLoading(false)
+          if (status === 'failed' || status === 'cancelled') {
+            setError('Payment was cancelled or failed.')
+          } else {
+            setError(`Payment status: ${status}`)
+          }
+          setDebugInfo([debugMsg1, debugMsg2, debugMsg3, debugMsg4, `Payment failed or cancelled: ${status}`])
         }
       })
     } catch (e) {
-      setError((e as Error).message ?? 'Failed')
+      const errorMsg = (e as Error).message ?? 'Failed to process payment. Please try again.'
+      console.error('Error in handleGenerate:', e)
+      setError(errorMsg)
+      setDebugInfo([...debugInfo, `ERROR: ${errorMsg}`])
       setLoading(false)
     }
   }
 
   const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?w=400&h=400&fit=crop'
-  const previewUrl = PLACEHOLDER_IMAGE
 
   return (
     <div className="min-h-screen gradient-mystic pb-24">
@@ -159,11 +197,11 @@ export default function Talisman() {
           <div className="mb-6 relative rounded-2xl overflow-hidden bg-[var(--color-secondary)]">
             <div className="aspect-square relative">
               <img
-                src={previewUrl}
+                src={PLACEHOLDER_IMAGE}
                 alt="Talisman Preview"
                 className="w-full h-full object-cover blur-sm opacity-60"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?w=400&h=400&fit=crop'
+                  (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE
                 }}
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/40">
@@ -177,19 +215,48 @@ export default function Talisman() {
         )}
 
         {error && (
-          <p className="text-red-400 text-sm mb-4 text-center">{error}</p>
+          <div className="mb-4">
+            <p className="text-red-400 text-sm text-center font-semibold mb-2">{error}</p>
+            {debugInfo.length > 0 && (
+              <div className="bg-black/50 rounded-lg p-3 text-xs text-gray-300 space-y-1 max-h-40 overflow-y-auto">
+                <p className="font-semibold text-yellow-400 mb-1">Debug Info:</p>
+                {debugInfo.map((msg, i) => (
+                  <p key={i} className="break-all">{msg}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {!error && debugInfo.length > 0 && (
+          <div className="mb-4 bg-black/30 rounded-lg p-3 text-xs text-gray-400 space-y-1 max-h-32 overflow-y-auto">
+            <p className="font-semibold text-blue-400 mb-1">Status:</p>
+            {debugInfo.map((msg, i) => (
+              <p key={i} className="break-all">{msg}</p>
+            ))}
+          </div>
         )}
 
-        <p className="text-center text-sm text-[var(--color-accent)] mb-4">
-          {isFree ? `🎁 ${t('talisman.freeFirst')}` : `⭐ ${t('talisman.price')}`}
-        </p>
-        <button
-          onClick={handleGenerate}
-          disabled={!canGenerate || loading}
-          className="w-full py-4 rounded-full gradient-gold text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? t('common.loading') : isFree ? t('talisman.generateFree') : t('talisman.unlockSeal')}
-        </button>
+        {canGenerate ? (
+          <>
+            <p className="text-center text-sm text-[var(--color-accent)] mb-4">
+              ⭐ 250 Stars (≈ $5)
+            </p>
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="w-full py-4 rounded-full gradient-gold text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? t('common.loading') : 'Get My Talisman'}
+            </button>
+          </>
+        ) : (
+          <div className="bg-[var(--color-secondary)] rounded-2xl p-6 text-center">
+            <p className="text-[var(--color-text-muted)] text-sm">
+              Please select a wish and style to continue.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

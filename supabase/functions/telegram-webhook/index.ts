@@ -26,14 +26,62 @@ Deno.serve(async (req) => {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       const supabase = createClient(supabaseUrl, supabaseKey)
+      
+      // Parse payload (JSON string)
+      let payload: Record<string, unknown> = {}
+      try {
+        payload = typeof successfulPayment.invoice_payload === 'string' 
+          ? JSON.parse(successfulPayment.invoice_payload) 
+          : (successfulPayment.invoice_payload as Record<string, unknown> || {})
+      } catch {
+        // If payload is not JSON, treat as product name
+        payload = { product: successfulPayment.invoice_payload || 'talisman' }
+      }
+      
+      const product = (payload.product as string) || successfulPayment.invoice_payload || 'talisman'
+      const telegramUserId = msg.from.id
+      const chargeId = successfulPayment.telegram_payment_charge_id
+      
+      // Insert payment record first
       await supabase.from('payments').insert({
-        telegram_payment_charge_id: successfulPayment.telegram_payment_charge_id,
-        telegram_id: msg.from.id,
-        product: successfulPayment.invoice_payload || 'talisman',
-        stars_paid: successfulPayment.total_amount || 50,
+        telegram_payment_charge_id: chargeId,
+        telegram_user_id: telegramUserId,
+        telegram_id: telegramUserId, // Legacy field
+        product,
+        amount_stars: successfulPayment.total_amount || 0,
+        stars_paid: successfulPayment.total_amount || 0, // Legacy field
         payload: successfulPayment,
         status: 'completed',
+      }).catch((e) => {
+        console.error('Failed to insert payment:', e)
+        // Continue even if insert fails (might be duplicate)
       })
+      
+      // Call fulfill-payment API to generate content and unlock features
+      const fulfillUrl = Deno.env.get('FULFILL_PAYMENT_URL') || 'https://kismet-beta.vercel.app/api/fulfill-payment'
+      try {
+        await fetch(fulfillUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_user_id: telegramUserId,
+            product,
+            telegram_payment_charge_id: chargeId,
+            payload: {
+              wish: payload.wish as string,
+              style: payload.style as string,
+              partnerSaju: payload.partnerSaju as Record<string, unknown>,
+            },
+            chat_id: msg.chat?.id,
+          }),
+        }).catch((e) => {
+          console.error('Failed to call fulfill-payment:', e)
+          // Don't fail webhook if fulfill-payment fails (can retry later)
+        })
+      } catch (e) {
+        console.error('Error calling fulfill-payment:', e)
+      }
+      
       return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 

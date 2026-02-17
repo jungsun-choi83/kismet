@@ -47,6 +47,7 @@ export interface FiveElements {
 export interface CategoryScore {
   score: number
   text: string
+  detail?: string // Detailed interpretation (2-3 sentences, premium only)
 }
 
 // Saju result
@@ -63,6 +64,14 @@ export interface SajuResult {
   luckyColor: string
   luckyNumber: number
   dayMaster: string
+  // Premium fields (unlocked after payment)
+  yearlyFortune?: string // 3-4 paragraphs for current year
+  bestMonths?: Array<{ month: string; reason: string }> // Top 3 months
+  cautionMonths?: Array<{ month: string; reason: string }> // 2 months to watch
+  unlocked?: {
+    fullReading?: boolean
+    talisman?: boolean
+  }
 }
 
 // Talisman

@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { checkDailyUsageLimit, incrementDailyUsage } from '../_shared/usageLimit.ts'
+import { checkMonthlyBudget, recordUsage, calculateCost } from '../_shared/budgetCap.ts'
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }
 
@@ -17,7 +19,34 @@ Deno.serve(async (req) => {
     const career = 3
     const health = 4
 
-    if (openaiKey) {
+    if (openaiKey && telegramUserId) {
+      // Check monthly budget cap first
+      const budgetCheck = await checkMonthlyBudget()
+      if (!budgetCheck.allowed) {
+        return new Response(JSON.stringify({
+          score: 0,
+          summary: 'Monthly budget limit reached. Please try again later.',
+          wealth: 0,
+          love: 0,
+          career: 0,
+          health: 0,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      // Check daily usage limit for free users
+      const usageCheck = await checkDailyUsageLimit(telegramUserId)
+      if (!usageCheck.allowed) {
+        return new Response(JSON.stringify({
+          score: 0,
+          summary: usageCheck.message || "You've reached your daily free limit. Come back tomorrow or unlock premium!",
+          wealth: 0,
+          love: 0,
+          career: 0,
+          health: 0,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      // Proceed with AI call
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
@@ -34,6 +63,14 @@ Deno.serve(async (req) => {
       if (content) {
         try {
           const parsed = JSON.parse(content.replace(/```json\n?|\n?```/g, '').trim())
+          
+          // Record usage and cost
+          const tokensInput = data?.usage?.prompt_tokens
+          const tokensOutput = data?.usage?.completion_tokens
+          const cost = calculateCost('gpt-4o-mini', tokensInput, tokensOutput)
+          await recordUsage('gpt-4o-mini', cost, telegramUserId, tokensInput, tokensOutput, true)
+          await incrementDailyUsage(telegramUserId)
+
           return new Response(JSON.stringify({
             score: parsed.score ?? score,
             summary: parsed.summary ?? summary,

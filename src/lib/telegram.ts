@@ -6,5 +6,8 @@ export const isTelegramEnv = !!(win && (win as unknown as { Telegram?: { WebApp?
 export function initTelegram() {
   if (isTelegramEnv) {
     init()
+    const tg = (win as unknown as { Telegram?: { WebApp?: { setHeaderColor?: (color: string) => void; expand?: () => void } } }).Telegram?.WebApp
+    tg?.setHeaderColor?.('#0A0A0F')
+    tg?.expand?.()
   }
 }

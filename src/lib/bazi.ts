@@ -31,11 +31,78 @@ function parsePillar(gz: string): Pillar | null {
   }
 }
 
+// Hidden stems (지장간) within earthly branches with weights
+const HIDDEN_STEMS: Record<string, Array<{ stem: string; element: string; weight: number }>> = {
+  子: [{ stem: '癸', element: 'water', weight: 1.0 }],
+  丑: [
+    { stem: '己', element: 'earth', weight: 0.7 },
+    { stem: '辛', element: 'metal', weight: 0.2 },
+    { stem: '癸', element: 'water', weight: 0.1 },
+  ],
+  寅: [
+    { stem: '甲', element: 'wood', weight: 0.7 },
+    { stem: '丙', element: 'fire', weight: 0.2 },
+    { stem: '戊', element: 'earth', weight: 0.1 },
+  ],
+  卯: [{ stem: '乙', element: 'wood', weight: 1.0 }],
+  辰: [
+    { stem: '戊', element: 'earth', weight: 0.7 },
+    { stem: '乙', element: 'wood', weight: 0.2 },
+    { stem: '癸', element: 'water', weight: 0.1 },
+  ],
+  巳: [
+    { stem: '丙', element: 'fire', weight: 0.7 },
+    { stem: '庚', element: 'metal', weight: 0.2 },
+    { stem: '戊', element: 'earth', weight: 0.1 },
+  ],
+  午: [
+    { stem: '丁', element: 'fire', weight: 0.7 },
+    { stem: '己', element: 'earth', weight: 0.3 },
+  ],
+  未: [
+    { stem: '己', element: 'earth', weight: 0.7 },
+    { stem: '丁', element: 'fire', weight: 0.2 },
+    { stem: '乙', element: 'wood', weight: 0.1 },
+  ],
+  申: [
+    { stem: '庚', element: 'metal', weight: 0.7 },
+    { stem: '壬', element: 'water', weight: 0.2 },
+    { stem: '戊', element: 'earth', weight: 0.1 },
+  ],
+  酉: [{ stem: '辛', element: 'metal', weight: 1.0 }],
+  戌: [
+    { stem: '戊', element: 'earth', weight: 0.7 },
+    { stem: '辛', element: 'metal', weight: 0.2 },
+    { stem: '丁', element: 'fire', weight: 0.1 },
+  ],
+  亥: [
+    { stem: '壬', element: 'water', weight: 0.7 },
+    { stem: '甲', element: 'wood', weight: 0.3 },
+  ],
+}
+
 function computeFiveElements(pillars: (Pillar | null)[]): FiveElements {
   const counts: Record<string, number> = { wood: 0, fire: 0, earth: 0, metal: 0, water: 0 }
+  
+  // Count heavenly stems (천간) - weight 1.0
   for (const p of pillars) {
-    if (p?.element) counts[p.element] = (counts[p.element] ?? 0) + 1
+    if (p?.element) {
+      counts[p.element] = (counts[p.element] ?? 0) + 1.0
+    }
   }
+  
+  // Count hidden stems (지장간) from earthly branches
+  for (const p of pillars) {
+    if (p?.earthlyBranch) {
+      const hidden = HIDDEN_STEMS[p.earthlyBranch]
+      if (hidden) {
+        for (const h of hidden) {
+          counts[h.element] = (counts[h.element] ?? 0) + h.weight
+        }
+      }
+    }
+  }
+  
   const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1
   return {
     wood: Math.round(((counts.wood ?? 0) / total) * 100),

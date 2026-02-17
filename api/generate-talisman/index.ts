@@ -145,11 +145,48 @@ export async function generateTalismanImage(
   }
 
   const wishText = wish.replace(/([A-Z])/g, ' $1').trim().toLowerCase()
+  
+  // Wish category to symbol mapping
+  const wishSymbols: Record<string, { central: string; patterns: string }> = {
+    wealth: { central: 'treasure mandala, lotus flower', patterns: 'clouds, gold ingot patterns, waves' },
+    love: { central: 'paired cranes, heart lotus', patterns: 'butterflies, knots, moon' },
+    career: { central: 'dragon, phoenix, mountain', patterns: 'stairs, stars, sun' },
+    health: { central: 'tortoise, crane, pine tree', patterns: 'herbs, water, wind' },
+    examSuccess: { central: 'carp, dragon gate, brush', patterns: 'books, stars, gate' },
+    protection: { central: 'bagua, tiger', patterns: 'sword, mirror, thunder' },
+    family: { central: 'tree, house, roots', patterns: 'birds, flowers, fruits' },
+  }
+  const symbol = wishSymbols[wishText] || wishSymbols.wealth
+  
+  // Traditional East Asian talisman prompt
+  const prompt = `Create a traditional East Asian talisman (부적/符籙) artwork.
 
-  // 고급스러운 금색 선으로 된 동양적 부적 이미지
-  const prompt = `고급스러운 금색 선으로 된 동양적 부적 이미지. A luxurious oriental talisman with elegant gold lines on dark premium paper. Wish: ${wishText}. Style: ${style}.
-사주 일간(Day Master): ${dayMaster}. 오행 밸런스(Five Elements): ${elements || 'balanced'}.
-미니멀하고 신비로운 한국/중국 풍 부적. 4K 고품질, 정사각형. 이미지에 글자 없음.`
+Background: Aged yellow/golden parchment paper texture (#D4A017), slightly weathered.
+Ink: Deep vermillion red (#CC2200, cinnabar red) brush calligraphy style.
+
+Content based on the user's Saju analysis:
+- The user's Day Master is ${dayMaster}.
+- Their Five Elements balance: ${elements || 'balanced'}.
+- Their wish category: ${wishText}.
+
+Design the talisman with these elements:
+- Central sacred geometric pattern or mandala symbolizing ${symbol.central}
+- Surrounding decorative borders with traditional ${symbol.patterns} patterns
+- Abstract mystical symbols and seal script (篆書) inspired brush strokes
+- Small circular seal stamps (印章) in corners
+
+CRITICAL STYLE RULES:
+- DO NOT write actual readable Chinese/Korean characters or text. Instead use ABSTRACT brush stroke patterns that LOOK LIKE ancient mystical script but are decorative/artistic.
+- The strokes should feel like ancient talismanic writing but be purely decorative.
+- Hand-brushed, organic feel — NOT digital or clean vector.
+- Slight ink bleeding and brush texture variations.
+- Traditional composition: vertical orientation, symmetrical layout.
+- Overall feel: authentic, sacred, hand-crafted, centuries-old wisdom.
+
+Color palette: Vermillion red (#CC2200) ink on aged gold/yellow (#D4A017) paper.
+Occasional black ink accents for seals and borders.
+No modern elements, no English text, no watermarks.
+4K high quality, square format.`
 
   const response = await openai.images.generate({
     model: 'dall-e-3',
