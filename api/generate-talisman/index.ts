@@ -19,11 +19,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { sajuResult, wish, style } = req.body ?? {}
+    const body = (req.body ?? {}) as {
+      sajuResult?: { dayMaster?: string; fiveElements?: unknown }
+      wish?: string
+      style?: string
+      telegramUserId?: number
+    }
+    const { sajuResult, wish, style, telegramUserId } = body
     const result = await generateTalismanImage(
       sajuResult ?? {},
       wish ?? '',
-      style ?? 'traditional'
+      style ?? 'traditional',
+      telegramUserId
     )
     res.status(200).json(result)
   } catch (e) {
