@@ -26,12 +26,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       telegramUserId?: number
     }
     const { sajuResult, wish, style, telegramUserId } = body
-    const result = await generateTalismanImage(
-      sajuResult ?? {},
-      wish ?? '',
-      style ?? 'traditional',
-      telegramUserId
-    )
+    
+    // Call with explicit parameters to avoid TypeScript inference issues
+    const saju = sajuResult ?? {}
+    const wishParam = wish ?? ''
+    const styleParam = style ?? 'traditional'
+    const userId = telegramUserId
+    
+    const result = await generateTalismanImage(saju, wishParam, styleParam, userId)
     res.status(200).json(result)
   } catch (e) {
     res.status(500).json({ error: (e as Error).message })
