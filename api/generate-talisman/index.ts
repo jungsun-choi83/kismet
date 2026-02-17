@@ -14,7 +14,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
 })
 
-async function generateTalismanImage(
+export async function generateTalismanImage(
   sajuResult: { dayMaster?: string; fiveElements?: unknown },
   wish: string,
   style: string,
