@@ -4,9 +4,9 @@
  */
 import type { VercelRequest, VercelResponse } from '../vercel'
 import { generateTalismanImage } from '../generate-talisman/index'
-import { generatePremiumReport } from '../../server/generateReport'
-import { generateCoupleReport } from '../../server/generateCouple'
-import { updatePaymentResult } from '../../server/lib/paymentLog'
+import { generatePremiumReport } from '../lib/generateReport'
+import { generateCoupleReport } from '../lib/generateCouple'
+import { updatePaymentResult } from '../lib/paymentLog'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://kismet-beta.vercel.app'

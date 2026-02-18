@@ -3,7 +3,7 @@
  * Payment is logged (who, when, how many Stars) then fulfillment runs only after success.
  */
 import type { VercelRequest, VercelResponse } from '../vercel'
-import { logPayment } from '../../server/lib/paymentLog'
+import { logPayment } from '../lib/paymentLog'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://kismet-beta.vercel.app'
