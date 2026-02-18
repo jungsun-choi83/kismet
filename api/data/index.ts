@@ -1,6 +1,6 @@
 /**
- * Merged API: subscription, report, talisman-result, credits (saves 3 serverless functions for Hobby plan limit)
- * GET ?type=subscription|report|talisman|credits&telegram_user_id=...
+ * Merged API: subscription, report, talisman-result, credits, couple-result (saves 4 serverless functions for Hobby plan limit)
+ * GET ?type=subscription|report|talisman|credits|couple&telegram_user_id=...
  */
 import type { VercelRequest, VercelResponse } from '../vercel'
 
@@ -56,7 +56,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ free_talisman_credits: credits })
     }
 
-    return res.status(400).json({ error: 'type required: subscription|report|talisman|credits' })
+    if (type === 'couple') {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/payments?telegram_user_id=eq.${u}&product=eq.couple&order=created_at.desc&limit=1&select=couple_report_text`, { headers })
+      const rows = r.ok ? ((await r.json()) as { couple_report_text?: string }[]) : []
+      const reportText = rows[0]?.couple_report_text
+      if (!reportText) return res.status(404).json({ error: 'Report not found' })
+      return res.status(200).json({ report: reportText })
+    }
+
+    return res.status(400).json({ error: 'type required: subscription|report|talisman|credits|couple' })
   } catch (e) {
     return res.status(500).json({ error: (e as Error).message })
   }

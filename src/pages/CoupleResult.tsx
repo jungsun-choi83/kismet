@@ -21,7 +21,7 @@ export default function CoupleResult() {
       navigate('/')
       return
     }
-    fetch(`/api/couple-result?telegram_user_id=${telegramUser.id}`)
+      fetch(`/api/data?type=couple&telegram_user_id=${telegramUser.id}`)
       .then((r) => r.json())
       .then((data: { report?: string }) => {
         if (data.report) setReportHtml(data.report)
