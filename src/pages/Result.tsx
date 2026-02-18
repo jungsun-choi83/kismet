@@ -396,6 +396,8 @@ function ProductCard({
 
   const handleBuy = async () => {
     console.log('ProductCard: handleBuy called for product:', product)
+    console.log('ProductCard: window.Telegram:', (window as unknown as { Telegram?: unknown }).Telegram)
+    console.log('ProductCard: telegramUser:', telegramUser)
     
     if (!telegramUser?.id) {
       console.error('ProductCard: Missing telegramUser')
@@ -403,34 +405,46 @@ function ProductCard({
       return
     }
     
-    // Get Telegram WebApp - wait a bit if not ready
-    type TelegramWebApp = { 
-      openInvoice?: (url: string, cb: (status: string) => void) => void
-      ready?: () => void
-      expand?: () => void
-    }
-    const win = window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }
-    let tg: TelegramWebApp | null = null
-    
-    // Try to get WebApp, wait up to 1 second if not ready
-    for (let i = 0; i < 10; i++) {
-      tg = win.Telegram?.WebApp || null
-      if (tg) break
-      await new Promise(resolve => setTimeout(resolve, 100))
+    // Get Telegram WebApp - check multiple ways
+    const win = window as unknown as { 
+      Telegram?: { 
+        WebApp?: { 
+          openInvoice?: (url: string, cb: (status: string) => void) => void
+          ready?: () => void
+          expand?: () => void
+          version?: string
+          initData?: string
+        }
+      }
     }
     
-    if (!tg) {
-      console.error('ProductCard: Telegram WebApp not available after waiting')
+    console.log('ProductCard: win.Telegram:', win.Telegram)
+    console.log('ProductCard: win.Telegram?.WebApp:', win.Telegram?.WebApp)
+    
+    // Check if we're in Telegram environment
+    const isInTelegram = !!(win.Telegram?.WebApp)
+    console.log('ProductCard: isInTelegram:', isInTelegram)
+    
+    if (!isInTelegram || !win.Telegram?.WebApp) {
+      console.error('ProductCard: Not in Telegram environment')
       setErr('Open from Telegram to purchase.')
       return
     }
+    
+    const tg = win.Telegram.WebApp
+    console.log('ProductCard: tg:', tg)
+    console.log('ProductCard: tg.openInvoice:', tg.openInvoice)
     
     // Ensure WebApp is ready
     tg.ready?.()
     tg.expand?.()
     
+    // Wait a bit for WebApp to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 200))
+    
     if (!tg.openInvoice) {
       console.error('ProductCard: openInvoice not available')
+      console.error('ProductCard: Available methods:', Object.keys(tg))
       setErr('Open from Telegram to purchase.')
       return
     }
@@ -452,6 +466,11 @@ function ProductCard({
       }
       
       console.log('ProductCard: Opening invoice:', data.invoiceLink)
+      if (!tg.openInvoice) {
+        setErr('Open from Telegram to purchase.')
+        setLoading(false)
+        return
+      }
       tg.openInvoice(data.invoiceLink, async (status) => {
         console.log('ProductCard: Payment status:', status)
         if (status === 'paid') {
