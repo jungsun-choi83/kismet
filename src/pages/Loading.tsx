@@ -58,12 +58,9 @@ export default function Loading() {
       return
     }
 
-    const saveSaju = (saju: SajuResult) => {
-      fetch('/api/save-saju', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegram_user_id: telegramUser.id, saju_result: saju }),
-      }).catch(() => {})
+    // save-saju is now handled automatically by calculate-saju API
+    const saveSaju = (_saju: SajuResult) => {
+      // No-op: calculate-saju API now saves to saju_cache automatically
     }
 
     if (isDemoMode) {

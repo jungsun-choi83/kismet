@@ -369,6 +369,69 @@ Respond with valid JSON only:
           ...userRow,
         })
       }
+      
+      // Save to saju_cache for talisman/report generation
+      await fetch(`${SUPABASE_URL}/rest/v1/saju_cache`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          telegram_user_id: telegramUserId,
+          saju_result: sajuResult,
+          updated_at: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+      
+      // Reward referrer if this referee completed their first Saju
+      try {
+        const referralsRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/referrals?referee_telegram_id=eq.${telegramUserId}&rewarded_at=is.null&select=referrer_telegram_id`,
+          { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+        )
+        if (referralsRes.ok) {
+          const referrals = (await referralsRes.json()) as { referrer_telegram_id: number }[]
+          for (const ref of referrals) {
+            const referrerId = ref.referrer_telegram_id
+            const creditsRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/user_credits?telegram_user_id=eq.${referrerId}&select=free_talisman_credits`,
+              { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+            )
+            const creditsRows = creditsRes.ok ? ((await creditsRes.json()) as { free_talisman_credits?: number }[]) : []
+            const currentCredits = creditsRows[0]?.free_talisman_credits ?? 0
+            await fetch(`${SUPABASE_URL}/rest/v1/user_credits`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`,
+                Prefer: 'resolution=merge-duplicates',
+              },
+              body: JSON.stringify({
+                telegram_user_id: referrerId,
+                free_talisman_credits: currentCredits + 1,
+              }),
+            }).catch(() => {})
+            await fetch(
+              `${SUPABASE_URL}/rest/v1/referrals?referee_telegram_id=eq.${telegramUserId}&referrer_telegram_id=eq.${referrerId}`,
+              {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  apikey: SUPABASE_KEY,
+                  Authorization: `Bearer ${SUPABASE_KEY}`,
+                },
+                body: JSON.stringify({ rewarded_at: new Date().toISOString() }),
+              }
+            ).catch(() => {})
+          }
+        }
+      } catch {
+        // ignore referral reward errors
+      }
     }
 
     return res.status(200).json(sajuResult)

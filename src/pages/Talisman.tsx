@@ -46,7 +46,7 @@ export default function Talisman() {
       console.log(debugMsg1)
       setDebugInfo([debugMsg1])
       
-      const res = await fetch('/api/create-invoice', {
+      const res = await fetch('/api/payment?action=create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -87,7 +87,7 @@ export default function Talisman() {
           
           const pollPayment = async (): Promise<void> => {
             try {
-              const checkRes = await fetch('/api/check-payment', {
+              const checkRes = await fetch('/api/payment?action=check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

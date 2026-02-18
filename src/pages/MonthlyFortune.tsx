@@ -49,7 +49,7 @@ export default function MonthlyFortune() {
     setError(null)
     try {
       const now = new Date()
-      const res = await fetch('/api/generate-monthly-fortune', {
+      const res = await fetch('/api/data?type=monthly-fortune', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,7 +80,7 @@ export default function MonthlyFortune() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/create-invoice', {
+      const res = await fetch('/api/payment?action=create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramUserId: telegramUser.id, product: 'monthly_fortune' }),

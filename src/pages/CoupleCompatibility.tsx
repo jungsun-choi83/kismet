@@ -41,7 +41,7 @@ export default function CoupleCompatibility() {
         return
       }
 
-      const res = await fetch('/api/create-invoice', {
+      const res = await fetch('/api/payment?action=create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

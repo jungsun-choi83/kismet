@@ -73,7 +73,7 @@ export async function callCreateInvoice(
   wish: string,
   style: string
 ): Promise<{ invoiceLink: string }> {
-  const res = await fetch('/api/create-invoice', {
+  const res = await fetch('/api/payment?action=create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ telegramUserId, product: product || 'talisman', wish, style }),

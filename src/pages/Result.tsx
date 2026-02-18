@@ -406,7 +406,7 @@ function ProductCard({
     setErr(null)
     try {
       console.log('ProductCard: Creating invoice for product:', product)
-      const res = await fetch('/api/create-invoice', {
+      const res = await fetch('/api/payment?action=create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramUserId: telegramUser.id, product }),
@@ -434,7 +434,7 @@ function ProductCard({
             try {
               // Check if payment exists in DB (webhook has processed it)
               // We check by user_id + product since charge_id isn't available yet
-              const checkRes = await fetch('/api/check-payment', {
+              const checkRes = await fetch('/api/payment?action=check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
