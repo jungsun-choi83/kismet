@@ -17,6 +17,49 @@ export function apiPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
         const url = req.url?.split('?')[0]
+        // Proxy to Supabase Edge Functions (same logic as Vercel api/calculate-saju, api/daily-fortune)
+        const supabaseUrl = process.env.SUPABASE_URL
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+        if (url === '/api/calculate-saju' && req.method === 'POST' && supabaseUrl && supabaseKey) {
+          try {
+            const raw = await readBody(req)
+            const proxyRes = await fetch(`${supabaseUrl}/functions/v1/calculate-saju`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseKey}` },
+              body: raw,
+            })
+            const text = await proxyRes.text()
+            res.statusCode = proxyRes.status
+            res.setHeader('Content-Type', 'application/json')
+            res.setHeader('Access-Control-Allow-Origin', '*')
+            res.end(text || '{}')
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: (e as Error).message }))
+          }
+          return
+        }
+        if (url === '/api/daily-fortune' && req.method === 'POST' && supabaseUrl && supabaseKey) {
+          try {
+            const raw = await readBody(req)
+            const proxyRes = await fetch(`${supabaseUrl}/functions/v1/daily-fortune`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseKey}` },
+              body: raw,
+            })
+            const text = await proxyRes.text()
+            res.statusCode = proxyRes.status
+            res.setHeader('Content-Type', 'application/json')
+            res.setHeader('Access-Control-Allow-Origin', '*')
+            res.end(text || '{}')
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: (e as Error).message }))
+          }
+          return
+        }
         if (url === '/api/generate-talisman' && req.method === 'POST') {
           try {
             const raw = await readBody(req)
