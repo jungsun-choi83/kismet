@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite'
 import { IncomingMessage, ServerResponse } from 'http'
-import { generateTalismanImage } from './api/generate-talisman/route'
+import { generateTalismanImage } from './api/generate-talisman/index'
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -3,9 +3,9 @@
  * DALL-E 3 and GPT-4o are called only here (never before payment).
  */
 import type { VercelRequest, VercelResponse } from '../vercel'
-import { generateTalismanImage } from '../generate-talisman/route'
-import { generatePremiumReport } from '../generate-report/route'
-import { generateCoupleReport } from '../generate-couple/route'
+import { generateTalismanImage } from '../generate-talisman/index'
+import { generatePremiumReport } from '../../server/generateReport'
+import { generateCoupleReport } from '../../server/generateCouple'
 import { updatePaymentResult } from '../lib/paymentLog'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN

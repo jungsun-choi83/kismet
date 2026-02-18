@@ -2,7 +2,7 @@
  * POST: Use 1 free talisman credit, generate talisman, send to user.
  */
 import type { VercelRequest, VercelResponse } from '../vercel'
-import { generateTalismanImage } from '../generate-talisman/route'
+import { generateTalismanImage } from '../generate-talisman/index'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://kismet-beta.vercel.app'
