@@ -15,9 +15,15 @@ export function getTelegramWebApp() {
 }
 
 export function initTelegram() {
+  // Debug: Check if Telegram script is loaded
+  console.log('initTelegram: window.Telegram exists?', !!(window as unknown as { Telegram?: unknown }).Telegram)
+  console.log('initTelegram: window.Telegram?.WebApp exists?', !!(window as unknown as { Telegram?: { WebApp?: unknown } }).Telegram?.WebApp)
+  
   if (isTelegramEnv) {
     init()
     const tg = getTelegramWebApp()
+    console.log('initTelegram: tg after init:', tg)
+    console.log('initTelegram: tg.openInvoice exists?', !!tg?.openInvoice)
     tg?.setHeaderColor?.('#0A0A0F')
     tg?.expand?.()
     tg?.ready?.()
