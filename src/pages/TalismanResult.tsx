@@ -20,7 +20,7 @@ export default function TalismanResult() {
 
     if (isPaid && telegramUser?.id) {
       setLoading(true)
-      fetch(`/api/talisman-result?telegram_user_id=${telegramUser.id}`)
+      fetch(`/api/data?type=talisman&telegram_user_id=${telegramUser.id}`)
         .then((r) => r.json())
         .then((data: { result_url?: string; wish?: string; style?: string }) => {
           if (data.result_url) {

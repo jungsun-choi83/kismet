@@ -141,10 +141,20 @@ export function apiPlugin(): Plugin {
           }
           return
         }
-        if (url?.startsWith('/api/report') && req.method === 'GET') {
-          res.setHeader('Content-Type', 'application/json')
-          res.setHeader('Access-Control-Allow-Origin', '*')
-          res.end(JSON.stringify({ error: 'Report not found (run on Vercel with Supabase)' }))
+        if (url?.startsWith('/api/data') && req.method === 'GET') {
+          try {
+            const vercelBase = process.env.VITE_VERCEL_URL || 'https://kismet-beta.vercel.app'
+            const proxyRes = await fetch(`${vercelBase}${url}`)
+            const text = await proxyRes.text()
+            res.statusCode = proxyRes.status
+            res.setHeader('Content-Type', 'application/json')
+            res.setHeader('Access-Control-Allow-Origin', '*')
+            res.end(text || '{}')
+          } catch (e) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: (e as Error).message }))
+          }
           return
         }
         next()

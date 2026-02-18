@@ -21,7 +21,7 @@ export default function ReportResult() {
       navigate('/')
       return
     }
-    fetch(`/api/report?telegram_user_id=${telegramUser.id}`)
+    fetch(`/api/data?type=report&telegram_user_id=${telegramUser.id}`)
       .then((r) => r.json())
       .then((data: { report?: string }) => {
         if (data.report) setReportHtml(data.report)

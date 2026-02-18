@@ -25,7 +25,7 @@ export default function MonthlyFortune() {
       navigate('/')
       return
     }
-    fetch(`/api/monthly-fortune-subscription?telegram_user_id=${telegramUser.id}`)
+    fetch(`/api/data?type=subscription&telegram_user_id=${telegramUser.id}`)
       .then((r) => r.json())
       .then((data: { active?: boolean }) => {
         setSubscriptionActive(data.active ?? false)

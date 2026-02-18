@@ -66,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         total_amount?: number
         invoice_payload?: string
       }
-      edited_message?: { chat?: { id: number }; text?: string }
+      edited_message?: { chat?: { id: number }; text?: string; successful_payment?: { telegram_payment_charge_id: string; total_amount: number; invoice_payload?: string } }
     }
 
     const preCheckout = body.pre_checkout_query
