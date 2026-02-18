@@ -17,17 +17,12 @@ export function apiPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
         const url = req.url?.split('?')[0]
-        // Proxy to Supabase Edge Functions (same logic as Vercel api/calculate-saju, api/daily-fortune)
-        const supabaseUrl = process.env.SUPABASE_URL
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-        if (url === '/api/calculate-saju' && req.method === 'POST' && supabaseUrl && supabaseKey) {
+        // Local dev: proxy to Vercel deployment (production uses api/calculate-saju, api/daily-fortune directly)
+        const vercelBase = process.env.VITE_VERCEL_URL || 'https://kismet-beta.vercel.app'
+        if (url === '/api/calculate-saju' && req.method === 'POST') {
           try {
             const raw = await readBody(req)
-            const proxyRes = await fetch(`${supabaseUrl}/functions/v1/calculate-saju`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseKey}` },
-              body: raw,
-            })
+            const proxyRes = await fetch(`${vercelBase}/api/calculate-saju`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: raw })
             const text = await proxyRes.text()
             res.statusCode = proxyRes.status
             res.setHeader('Content-Type', 'application/json')
@@ -40,14 +35,10 @@ export function apiPlugin(): Plugin {
           }
           return
         }
-        if (url === '/api/daily-fortune' && req.method === 'POST' && supabaseUrl && supabaseKey) {
+        if (url === '/api/daily-fortune' && req.method === 'POST') {
           try {
             const raw = await readBody(req)
-            const proxyRes = await fetch(`${supabaseUrl}/functions/v1/daily-fortune`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseKey}` },
-              body: raw,
-            })
+            const proxyRes = await fetch(`${vercelBase}/api/daily-fortune`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: raw })
             const text = await proxyRes.text()
             res.statusCode = proxyRes.status
             res.setHeader('Content-Type', 'application/json')

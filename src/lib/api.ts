@@ -1,13 +1,11 @@
 import type { UserInput } from '@/types'
 
-// Supabase Edge Function 대신 Vercel API 사용
-// Edge Function 에러 방지를 위해 fetch로 직접 호출
+// Vercel API만 사용 (Edge Function 미사용)
 
 export async function callCalculateSaju(
   userInput: Partial<UserInput> & { telegramUserId: number }
 ): Promise<unknown> {
-  // Vercel API 프록시 사용 (브라우저 → Vercel → Supabase Edge Function)
-  // CORS/네트워크 제한 우회
+  // Vercel API: api/calculate-saju (Bazi + OpenAI + Supabase)
   try {
     const res = await fetch('/api/calculate-saju', {
       method: 'POST',
@@ -50,7 +48,7 @@ export async function callDailyFortune(
   date: string,
   telegramUserId: number
 ): Promise<unknown> {
-  // Vercel API 프록시 사용 (브라우저 → Vercel → Supabase Edge Function)
+  // Vercel API: api/daily-fortune
   try {
     const res = await fetch('/api/daily-fortune', {
       method: 'POST',
