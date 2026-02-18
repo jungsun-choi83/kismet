@@ -29,10 +29,19 @@ export default function Talisman() {
       return
     }
     
-    const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void } } }
+    const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void; ready?: () => void; expand?: () => void } } }
     const tg = win.Telegram?.WebApp
     
-    if (!tg?.openInvoice) {
+    if (!tg) {
+      setError('Please open this app from Telegram to purchase.')
+      return
+    }
+    
+    // Ensure WebApp is ready
+    tg.ready?.()
+    tg.expand?.()
+    
+    if (!tg.openInvoice) {
       setError('Please open this app from Telegram to purchase.')
       return
     }

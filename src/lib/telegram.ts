@@ -3,10 +3,21 @@ import { init } from '@telegram-apps/sdk-react'
 const win = typeof window !== 'undefined' ? window : null
 export const isTelegramEnv = !!(win && (win as unknown as { Telegram?: { WebApp?: unknown } }).Telegram?.WebApp)
 
+// Helper to get Telegram WebApp instance
+export function getTelegramWebApp() {
+  if (!isTelegramEnv) return null
+  return (win as unknown as { Telegram?: { WebApp?: { 
+    setHeaderColor?: (color: string) => void
+    expand?: () => void
+    ready?: () => void
+    openInvoice?: (url: string, cb: (status: string) => void) => void
+  } } }).Telegram?.WebApp
+}
+
 export function initTelegram() {
   if (isTelegramEnv) {
     init()
-    const tg = (win as unknown as { Telegram?: { WebApp?: { setHeaderColor?: (color: string) => void; expand?: () => void; version?: string; ready?: () => void } } }).Telegram?.WebApp
+    const tg = getTelegramWebApp()
     tg?.setHeaderColor?.('#0A0A0F')
     tg?.expand?.()
     tg?.ready?.()

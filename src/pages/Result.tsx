@@ -396,9 +396,41 @@ function ProductCard({
 
   const handleBuy = async () => {
     console.log('ProductCard: handleBuy called for product:', product)
-    const tg = (window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void } } }).Telegram?.WebApp
-    if (!telegramUser?.id || !tg?.openInvoice) {
-      console.error('ProductCard: Missing telegramUser or openInvoice')
+    
+    if (!telegramUser?.id) {
+      console.error('ProductCard: Missing telegramUser')
+      setErr('Open from Telegram to purchase.')
+      return
+    }
+    
+    // Get Telegram WebApp - wait a bit if not ready
+    type TelegramWebApp = { 
+      openInvoice?: (url: string, cb: (status: string) => void) => void
+      ready?: () => void
+      expand?: () => void
+    }
+    const win = window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }
+    let tg: TelegramWebApp | null = null
+    
+    // Try to get WebApp, wait up to 1 second if not ready
+    for (let i = 0; i < 10; i++) {
+      tg = win.Telegram?.WebApp || null
+      if (tg) break
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    
+    if (!tg) {
+      console.error('ProductCard: Telegram WebApp not available after waiting')
+      setErr('Open from Telegram to purchase.')
+      return
+    }
+    
+    // Ensure WebApp is ready
+    tg.ready?.()
+    tg.expand?.()
+    
+    if (!tg.openInvoice) {
+      console.error('ProductCard: openInvoice not available')
       setErr('Open from Telegram to purchase.')
       return
     }
