@@ -168,6 +168,7 @@ Content based on the user's Saju analysis:
 - The user's Day Master is ${dayMaster}.
 - Their Five Elements balance: ${elements || 'balanced'}.
 - Their wish category: ${wishText}.
+- Style preference: ${style}.
 
 Design the talisman with these elements:
 - Central sacred geometric pattern or mandala symbolizing ${symbol.central}

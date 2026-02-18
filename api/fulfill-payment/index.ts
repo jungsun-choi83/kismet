@@ -6,7 +6,7 @@ import type { VercelRequest, VercelResponse } from '../vercel'
 import { generateTalismanImage } from '../generate-talisman/index'
 import { generatePremiumReport } from '../../server/generateReport'
 import { generateCoupleReport } from '../../server/generateCouple'
-import { updatePaymentResult } from '../lib/paymentLog'
+import { updatePaymentResult } from '../../server/lib/paymentLog'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://kismet-beta.vercel.app'
@@ -126,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (chat_id && BOT_TOKEN) {
         await sendMessage(
           chat_id,
-          `✨ Premium Bundle unlocked!\n\nFull Reading + Personal Talisman\n\n<a href="${MINI_APP_URL}/result">View Full Reading</a> | <a href="${MINI_APP_URL}/talisman/result?paid=1">View Talisman</a>`,
+          `✨ Premium Bundle unlocked!\n\nFull Reading + Personal Talisman\n\n${guide}\n\n<a href="${MINI_APP_URL}/result">View Full Reading</a> | <a href="${MINI_APP_URL}/talisman/result?paid=1">View Talisman</a>`,
           { inline_keyboard: [
             [{ text: '📖 Full Reading', web_app: { url: `${MINI_APP_URL}/result` } }],
             [{ text: '🔮 Talisman', web_app: { url: `${MINI_APP_URL}/talisman/result?paid=1` } }]

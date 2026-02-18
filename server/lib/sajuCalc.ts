@@ -1,6 +1,5 @@
 /**
- * Four Pillars (Bazi) calculation for Vercel API - no Edge Function dependency.
- * Uses lunar-javascript for accurate solar/lunar conversion.
+ * Four Pillars (Bazi) - in server/lib to avoid Vercel function count
  */
 import { Solar, Lunar } from 'lunar-javascript'
 
@@ -61,81 +60,33 @@ const HIDDEN_STEMS: Record<string, Array<{ stem: string; element: string; weight
 
 function parsePillar(gz: string): Pillar | null {
   if (!gz || gz.length < 2) return null
-  const stem = gz[0]
-  const branch = gz[1]
+  const stem = gz[0], branch = gz[1]
   const element = STEM_ELEMENT[stem] ?? BRANCH_ELEMENT[branch]
-  return {
-    heavenlyStem: stem,
-    earthlyBranch: branch,
-    heavenlyStemEnglish: STEM_EN[stem],
-    earthlyBranchEnglish: BRANCH_EN[branch],
-    element: element ?? 'earth',
-  }
+  return { heavenlyStem: stem, earthlyBranch: branch, heavenlyStemEnglish: STEM_EN[stem], earthlyBranchEnglish: BRANCH_EN[branch], element: element ?? 'earth' }
 }
 
 function computeFiveElements(pillars: (Pillar | null)[]): FiveElements {
   const counts: Record<string, number> = { wood: 0, fire: 0, earth: 0, metal: 0, water: 0 }
-  for (const p of pillars) {
-    if (p?.element) counts[p.element] = (counts[p.element] ?? 0) + 1.0
-  }
+  for (const p of pillars) { if (p?.element) counts[p.element] = (counts[p.element] ?? 0) + 1.0 }
   for (const p of pillars) {
     if (p?.earthlyBranch) {
       const hidden = HIDDEN_STEMS[p.earthlyBranch]
-      if (hidden) {
-        for (const h of hidden) counts[h.element] = (counts[h.element] ?? 0) + h.weight
-      }
+      if (hidden) for (const h of hidden) counts[h.element] = (counts[h.element] ?? 0) + h.weight
     }
   }
   const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1
-  return {
-    wood: Math.round(((counts.wood ?? 0) / total) * 100),
-    fire: Math.round(((counts.fire ?? 0) / total) * 100),
-    earth: Math.round(((counts.earth ?? 0) / total) * 100),
-    metal: Math.round(((counts.metal ?? 0) / total) * 100),
-    water: Math.round(((counts.water ?? 0) / total) * 100),
-  }
+  return { wood: Math.round(((counts.wood ?? 0) / total) * 100), fire: Math.round(((counts.fire ?? 0) / total) * 100), earth: Math.round(((counts.earth ?? 0) / total) * 100), metal: Math.round(((counts.metal ?? 0) / total) * 100), water: Math.round(((counts.water ?? 0) / total) * 100) }
 }
 
-export function calculateBazi(
-  birthDate: string,
-  birthTime: string | null,
-  calendarType: 'solar' | 'lunar'
-): { fourPillars: FourPillars; fiveElements: FiveElements; dayMaster: string } {
+export function calculateBazi(birthDate: string, birthTime: string | null, calendarType: 'solar' | 'lunar'): { fourPillars: FourPillars; fiveElements: FiveElements; dayMaster: string } {
   const [y, m, d] = birthDate.split('-').map(Number)
-  let hour = 12
-  let minute = 0
-  if (birthTime) {
-    const [h, min] = birthTime.split(':').map(Number)
-    hour = h
-    minute = min ?? 0
-  }
-
-  let solar
-  if (calendarType === 'lunar') {
-    const lunarObj = Lunar.fromYmdHms(y, m, d, hour, minute, 0)
-    solar = lunarObj.getSolar()
-  } else {
-    solar = Solar.fromYmdHms(y, m, d, hour, minute, 0)
-  }
-
-  const lunar = solar.getLunar()
-  const eightChar = lunar.getEightChar()
-
-  const yearP = parsePillar(eightChar.getYear())
-  const monthP = parsePillar(eightChar.getMonth())
-  const dayP = parsePillar(eightChar.getDay())
-  const timeP = birthTime ? parsePillar(eightChar.getTime()) : null
-
+  let hour = 12, minute = 0
+  if (birthTime) { const [h, min] = birthTime.split(':').map(Number); hour = h; minute = min ?? 0 }
+  let solar = calendarType === 'lunar' ? Lunar.fromYmdHms(y, m, d, hour, minute, 0).getSolar() : Solar.fromYmdHms(y, m, d, hour, minute, 0)
+  const lunar = solar.getLunar(), eightChar = lunar.getEightChar()
+  const yearP = parsePillar(eightChar.getYear()), monthP = parsePillar(eightChar.getMonth()), dayP = parsePillar(eightChar.getDay()), timeP = birthTime ? parsePillar(eightChar.getTime()) : null
   const pillars = [yearP, monthP, dayP, timeP].filter(Boolean)
   const fiveElements = computeFiveElements(pillars as Pillar[])
-
-  const fourPillars: FourPillars = {
-    year: yearP!,
-    month: monthP!,
-    day: dayP!,
-    hour: timeP,
-  }
-
-  const dayMaster = dayP?.heavenlyStem ?? ''
-  return { fourPillars, fiveElements, dayMaster }
+  const fourPillars: FourPillars = { year: yearP!, month: monthP!, day: dayP!, hour: timeP }
+  return { fourPillars, fiveElements, dayMaster: dayP?.heavenlyStem ?? '' }
 }

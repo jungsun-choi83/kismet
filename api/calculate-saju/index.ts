@@ -3,7 +3,7 @@
  * Full implementation: Bazi + OpenAI + Supabase.
  */
 import type { VercelRequest, VercelResponse } from '../vercel'
-import { calculateBazi } from '../lib/sajuCalc'
+import { calculateBazi } from '../../server/lib/sajuCalc'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
@@ -173,7 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       telegramUserId?: number
       username?: string
     }
-    const { birthDate, birthTime, gender, calendarType, birthCity, latitude, longitude, timezoneOffset, timezoneName, telegramUserId } = body
+    const { birthDate, birthTime, gender, calendarType, birthCity, latitude, longitude, timezoneName, telegramUserId } = body
     if (!birthDate) return res.status(400).json({ error: 'birthDate required' })
 
     const cal = calendarType === 'lunar' ? 'lunar' : 'solar'

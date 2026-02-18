@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
-  const telegramUserId = req.query.telegram_user_id as string
+  const telegramUserId = req.query?.telegram_user_id as string | undefined
   if (!telegramUserId) {
     return res.status(400).json({ error: 'telegram_user_id required' })
   }
