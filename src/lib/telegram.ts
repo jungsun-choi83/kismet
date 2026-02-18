@@ -12,18 +12,26 @@ export function initTelegram() {
     tg?.ready?.()
     
     // Force cache refresh on app start (for Telegram Mini App cache issues)
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlVersion = urlParams.get('v')
     const lastVersion = sessionStorage.getItem('app_version')
-    const currentVersion = import.meta.env.VITE_APP_VERSION || new Date().getTime().toString()
-    if (lastVersion !== currentVersion) {
+    const currentVersion = urlVersion || import.meta.env.VITE_APP_VERSION || '2'
+    
+    // Clear all caches on every load to force fresh content
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(name => caches.delete(name)))
+    }
+    
+    // If URL has version param and it's different, reload
+    if (urlVersion && lastVersion && urlVersion !== lastVersion) {
+      sessionStorage.setItem('app_version', urlVersion)
+      window.location.reload()
+      return
+    }
+    
+    // Set version if not set
+    if (!lastVersion) {
       sessionStorage.setItem('app_version', currentVersion)
-      // Clear all caches
-      if ('caches' in window) {
-        caches.keys().then(names => names.forEach(name => caches.delete(name)))
-      }
-      // Force reload if version changed (but only once per session)
-      if (lastVersion && lastVersion !== currentVersion) {
-        window.location.reload()
-      }
     }
   }
 }
