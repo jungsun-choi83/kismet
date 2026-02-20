@@ -34,12 +34,30 @@ export default function CoupleCompatibility() {
 
     try {
       const partnerSaju = calculateBazi(partnerBirthDate, timeUnknown ? null : partnerBirthTime, partnerCalendarType)
-      const tg = (window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void } } }).Telegram?.WebApp
-      if (!tg?.openInvoice) {
-        setError('Open from Telegram to purchase.')
+      
+      // Import waitForTelegramWebApp helper
+      const { waitForTelegramWebApp } = await import('@/lib/telegram')
+      
+      // Wait for Telegram WebApp SDK to be fully initialized (especially important on mobile)
+      const tg = await waitForTelegramWebApp(3000)
+      
+      if (!tg || !tg.openInvoice) {
+        const { checkStarsAvailability } = await import('@/lib/telegram')
+        const starsCheck = checkStarsAvailability()
+        
+        if (!tg?.initData) {
+          setError('Telegram WebApp SDK가 완전히 초기화되지 않았습니다. 앱을 새로고침해주세요.')
+        } else {
+          setError('한국에서는 Telegram Stars 결제가 제한될 수 있습니다. Telegram 앱을 최신 버전으로 업데이트해주세요.')
+        }
         setLoading(false)
         return
       }
+      
+      // Ensure WebApp is ready
+      tg.ready?.()
+      tg.expand?.()
+      await new Promise(resolve => setTimeout(resolve, 300))
 
       const res = await fetch('/api/payment?action=create', {
         method: 'POST',

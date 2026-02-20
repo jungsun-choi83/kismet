@@ -10,16 +10,33 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>KISMET — Discover Your Destiny</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Load Telegram SDK only if not already available (for browser testing) -->
     <script>
-      // Debug: Check if Telegram script loaded
+      // Check if we're in Telegram Mini App (mobile automatically injects SDK)
+      const isInTelegram = !!(window.Telegram && window.Telegram.WebApp);
+      
+      if (!isInTelegram) {
+        // Only load script if not in Telegram (for browser testing)
+        const script = document.createElement('script');
+        script.src = 'https://telegram.org/js/telegram-web-app.js';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+      
+      // Debug: Check Telegram SDK availability
       window.addEventListener('load', function() {
-        console.log('HTML: Telegram script loaded?', !!(window.Telegram && window.Telegram.WebApp));
-        console.log('HTML: window.Telegram:', window.Telegram);
-        if (window.Telegram && window.Telegram.WebApp) {
-          console.log('HTML: WebApp methods:', Object.keys(window.Telegram.WebApp));
-          console.log('HTML: openInvoice exists?', typeof window.Telegram.WebApp.openInvoice === 'function');
-        }
+        setTimeout(() => {
+          console.log('HTML: Telegram script loaded?', !!(window.Telegram && window.Telegram.WebApp));
+          console.log('HTML: window.Telegram:', window.Telegram);
+          if (window.Telegram && window.Telegram.WebApp) {
+            const webApp = window.Telegram.WebApp;
+            console.log('HTML: WebApp methods:', Object.keys(webApp));
+            console.log('HTML: openInvoice exists?', typeof webApp.openInvoice === 'function');
+            console.log('HTML: initData exists?', !!webApp.initData);
+            console.log('HTML: version:', webApp.version);
+            console.log('HTML: platform:', webApp.platform);
+          }
+        }, 500);
       });
     </script>
   </head>

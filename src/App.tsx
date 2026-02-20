@@ -39,6 +39,36 @@ function AppContent() {
     })
   }, [telegramUser?.languageCode])
 
+  // Debug: Log Telegram environment info on app start
+  useEffect(() => {
+    if (isTelegramEnv) {
+      setTimeout(() => {
+        import('./lib/telegram').then(({ getTelegramDebugInfo, checkStarsAvailability }) => {
+          const debugInfo = getTelegramDebugInfo()
+          const starsCheck = checkStarsAvailability()
+          
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+          console.log('🔍 Telegram 환경 진단 정보')
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+          console.log('Telegram WebApp:', debugInfo.hasWebApp ? '✅ 있음' : '❌ 없음')
+          console.log('initData:', debugInfo.hasInitData ? '✅ 있음' : '❌ 없음')
+          console.log('openInvoice 메서드:', debugInfo.hasOpenInvoice ? '✅ 있음' : '❌ 없음')
+          console.log('Telegram 버전:', debugInfo.version || '알 수 없음')
+          console.log('플랫폼:', debugInfo.platform || '알 수 없음')
+          console.log('언어:', debugInfo.language || '알 수 없음')
+          console.log('타임존:', debugInfo.timezone || '알 수 없음')
+          console.log('Stars 결제 가능:', starsCheck.available ? '✅ 가능' : '❌ 불가능')
+          if (!starsCheck.available) {
+            console.log('사유:', starsCheck.reason)
+          }
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+          console.log('전체 진단 정보:', debugInfo)
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        })
+      }, 1000)
+    }
+  }, [])
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white font-[family-name:var(--font-inter)]">
       <Routes>

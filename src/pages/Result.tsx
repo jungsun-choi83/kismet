@@ -405,48 +405,61 @@ function ProductCard({
       return
     }
     
-    // Get Telegram WebApp - check multiple ways
-    const win = window as unknown as { 
-      Telegram?: { 
-        WebApp?: { 
-          openInvoice?: (url: string, cb: (status: string) => void) => void
-          ready?: () => void
-          expand?: () => void
-          version?: string
-          initData?: string
-        }
-      }
-    }
+    // Import waitForTelegramWebApp helper
+    const { waitForTelegramWebApp } = await import('@/lib/telegram')
     
-    console.log('ProductCard: win.Telegram:', win.Telegram)
-    console.log('ProductCard: win.Telegram?.WebApp:', win.Telegram?.WebApp)
+    // Wait for Telegram WebApp SDK to be fully initialized (especially important on mobile)
+    console.log('ProductCard: Waiting for Telegram WebApp SDK...')
+    const tg = await waitForTelegramWebApp(5000) // Wait up to 5 seconds
     
-    // Check if we're in Telegram environment
-    const isInTelegram = !!(win.Telegram?.WebApp)
-    console.log('ProductCard: isInTelegram:', isInTelegram)
-    
-    if (!isInTelegram || !win.Telegram?.WebApp) {
-      console.error('ProductCard: Not in Telegram environment')
-      setErr('Open from Telegram to purchase.')
+    if (!tg) {
+      console.error('ProductCard: Telegram WebApp SDK not available')
+      setErr('Telegram Mini App에서 열어주세요. Stars 결제는 Telegram 앱 내에서만 사용 가능합니다.')
       return
     }
     
-    const tg = win.Telegram.WebApp
     console.log('ProductCard: tg:', tg)
     console.log('ProductCard: tg.openInvoice:', tg.openInvoice)
+    console.log('ProductCard: tg.initData:', tg.initData ? 'present' : 'missing')
+    console.log('ProductCard: tg.version:', tg.version)
+    console.log('ProductCard: tg.platform:', tg.platform)
+    console.log('ProductCard: All methods:', Object.keys(tg))
     
     // Ensure WebApp is ready
     tg.ready?.()
     tg.expand?.()
     
-    // Wait a bit for WebApp to fully initialize
-    await new Promise(resolve => setTimeout(resolve, 200))
+    // Additional wait for mobile initialization
+    await new Promise(resolve => setTimeout(resolve, 500))
     
-    if (!tg.openInvoice) {
-      console.error('ProductCard: openInvoice not available')
+    // Double-check openInvoice after wait
+    if (typeof tg.openInvoice !== 'function') {
+      console.error('ProductCard: openInvoice still not available after wait')
       console.error('ProductCard: Available methods:', Object.keys(tg))
-      setErr('Open from Telegram to purchase.')
-      return
+      console.error('ProductCard: tg.initData:', tg.initData)
+      
+      // Try direct access as fallback
+      const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (status: string) => void) => void } } } }
+      const directOpenInvoice = win.Telegram?.WebApp?.openInvoice
+      
+      if (directOpenInvoice) {
+        console.log('✅ Found openInvoice via direct access')
+        // Use direct access
+        tg.openInvoice = directOpenInvoice
+      } else {
+        // Check if Stars are available in this Telegram version/region
+        const { checkStarsAvailability, getTelegramDebugInfo } = await import('@/lib/telegram')
+        const starsCheck = checkStarsAvailability()
+        const debugInfo = getTelegramDebugInfo()
+        
+        console.log('🔍 Detailed Debug Info:', debugInfo)
+        console.log('🔍 Stars Check Result:', starsCheck)
+        
+        const errorMsg = `결제 기능을 사용할 수 없습니다.\n\n진단 정보:\n- Telegram 버전: ${debugInfo.version || '알 수 없음'}\n- 플랫폼: ${debugInfo.platform || '알 수 없음'}\n- openInvoice 메서드: 없음\n\n다음 사항을 확인해주세요:\n1. Telegram 앱을 최신 버전으로 업데이트\n2. 앱을 완전히 종료 후 다시 실행\n3. Telegram 설정에서 Stars 구매 가능 여부 확인\n\n콘솔(F12)에서 더 자세한 정보를 확인할 수 있습니다.`
+        console.error('❌ Stars not available - detailed info:', debugInfo)
+        setErr(errorMsg)
+        return
+      }
     }
     setLoading(true)
     setErr(null)
@@ -466,12 +479,30 @@ function ProductCard({
       }
       
       console.log('ProductCard: Opening invoice:', data.invoiceLink)
-      if (!tg.openInvoice) {
-        setErr('Open from Telegram to purchase.')
-        setLoading(false)
-        return
+      
+      // Final check before calling openInvoice
+      if (typeof tg.openInvoice !== 'function') {
+        console.error('ProductCard: openInvoice not available right before call')
+        // Try direct access one more time
+        const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (status: string) => void) => void } } } }
+        const directOpenInvoice = win.Telegram?.WebApp?.openInvoice
+        if (directOpenInvoice) {
+          console.log('✅ Using direct openInvoice access')
+          directOpenInvoice(data.invoiceLink, async (status) => {
+            handlePaymentCallback(status)
+          })
+        } else {
+          setErr('결제 기능을 사용할 수 없습니다. Telegram 앱을 최신 버전으로 업데이트해주세요.')
+          setLoading(false)
+          return
+        }
+      } else {
+        tg.openInvoice(data.invoiceLink, async (status) => {
+          handlePaymentCallback(status)
+        })
       }
-      tg.openInvoice(data.invoiceLink, async (status) => {
+      
+      async function handlePaymentCallback(status: string) {
         console.log('ProductCard: Payment status:', status)
         if (status === 'paid') {
           // Payment successful - but webhook might not have arrived yet
@@ -525,10 +556,10 @@ function ProductCard({
         } else {
           setLoading(false)
           if (status === 'failed' || status === 'cancelled') {
-            setErr('Payment was cancelled or failed.')
+            setErr('결제가 취소되었거나 실패했습니다.')
           }
         }
-      })
+      }
     } catch (e) {
       setErr((e as Error).message)
       setLoading(false)

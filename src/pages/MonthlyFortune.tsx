@@ -72,11 +72,33 @@ export default function MonthlyFortune() {
   }
 
   const handleBuy = async () => {
-    const tg = (window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (s: string) => void) => void } } }).Telegram?.WebApp
-    if (!telegramUser?.id || !tg?.openInvoice) {
-      setError('Open from Telegram to purchase.')
+    if (!telegramUser?.id) {
+      setError('Please open this app from Telegram Mini App.')
       return
     }
+    
+    // Import waitForTelegramWebApp helper
+    const { waitForTelegramWebApp } = await import('@/lib/telegram')
+    
+    // Wait for Telegram WebApp SDK to be fully initialized (especially important on mobile)
+    const tg = await waitForTelegramWebApp(3000)
+    
+    if (!tg || !tg.openInvoice) {
+      const { checkStarsAvailability } = await import('@/lib/telegram')
+      const starsCheck = checkStarsAvailability()
+      
+      if (!tg?.initData) {
+        setError('Telegram WebApp SDK가 완전히 초기화되지 않았습니다. 앱을 새로고침해주세요.')
+      } else {
+        setError('한국에서는 Telegram Stars 결제가 제한될 수 있습니다. Telegram 앱을 최신 버전으로 업데이트해주세요.')
+      }
+      return
+    }
+    
+    // Ensure WebApp is ready
+    tg.ready?.()
+    tg.expand?.()
+    await new Promise(resolve => setTimeout(resolve, 300))
     setLoading(true)
     setError(null)
     try {
