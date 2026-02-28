@@ -42,9 +42,6 @@ export default function CoupleCompatibility() {
       const tg = await waitForTelegramWebApp(3000)
       
       if (!tg || !tg.openInvoice) {
-        const { checkStarsAvailability } = await import('@/lib/telegram')
-        const starsCheck = checkStarsAvailability()
-        
         if (!tg?.initData) {
           setError('Telegram WebApp SDK가 완전히 초기화되지 않았습니다. 앱을 새로고침해주세요.')
         } else {
@@ -74,7 +71,7 @@ export default function CoupleCompatibility() {
         setLoading(false)
         return
       }
-      tg.openInvoice(data.invoiceLink, (status) => {
+      tg.openInvoice(data.invoiceLink, (status: string) => {
         setLoading(false)
         if (status === 'paid') navigate('/couple/result')
       })

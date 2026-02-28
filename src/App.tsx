@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from '@/store'
 import { useTelegramUser } from '@/hooks/useTelegramUser'
-import { isTelegramEnv } from '@/lib/telegram'
+import { checkTelegramEnv } from '@/lib/telegram'
 import Home from '@/pages/Home'
 import Input from '@/pages/Input'
 import Loading from '@/pages/Loading'
@@ -41,7 +41,7 @@ function AppContent() {
 
   // Debug: Log Telegram environment info on app start
   useEffect(() => {
-    if (isTelegramEnv) {
+    if (checkTelegramEnv()) {
       setTimeout(() => {
         import('./lib/telegram').then(({ getTelegramDebugInfo, checkStarsAvailability }) => {
           const debugInfo = getTelegramDebugInfo()
@@ -89,7 +89,20 @@ function AppContent() {
 }
 
 function App() {
-  if (isTelegramEnv) {
+  // Re-check on mount and after delay - SDK may inject late on mobile
+  const [inTelegram, setInTelegram] = useState(checkTelegramEnv)
+  
+  useEffect(() => {
+    if (checkTelegramEnv()) {
+      setInTelegram(true)
+      return
+    }
+    const t1 = setTimeout(() => { if (checkTelegramEnv()) setInTelegram(true) }, 500)
+    const t2 = setTimeout(() => { if (checkTelegramEnv()) setInTelegram(true) }, 1500)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [])
+
+  if (inTelegram) {
     return <AppWithTelegram />
   }
   return (

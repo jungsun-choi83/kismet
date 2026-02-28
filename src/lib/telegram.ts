@@ -16,9 +16,10 @@ export function checkTelegramEnv(): boolean {
 
 export const isTelegramEnv = checkTelegramEnv()
 
-// Helper to get Telegram WebApp instance with better type safety
+// Helper to get Telegram WebApp instance - always checks fresh (SDK may inject late on mobile)
 export function getTelegramWebApp() {
-  if (!isTelegramEnv || !win) return null
+  if (!win) return null
+  // Don't use cached isTelegramEnv - SDK may load after our module
   return (win as unknown as { Telegram?: { WebApp?: { 
     setHeaderColor?: (color: string) => void
     expand?: () => void
@@ -27,39 +28,81 @@ export function getTelegramWebApp() {
     initData?: string
     version?: string
     platform?: string
-  } } }).Telegram?.WebApp
+  } } }).Telegram?.WebApp ?? null
 }
 
-// Wait for Telegram WebApp SDK to be fully initialized (especially on mobile)
-export async function waitForTelegramWebApp(maxWait = 3000): Promise<typeof window.Telegram.WebApp | null> {
+// Read WebApp directly from window (no module cache)
+function getWebAppRaw(): unknown {
+  if (typeof window === 'undefined') return null
+  const w = window as unknown as { Telegram?: { WebApp?: unknown } }
+  return w.Telegram?.WebApp ?? null
+}
+
+// Wait for Telegram WebApp; if not present after 2s, load script and wait more (Mini App client may inject late)
+export async function waitForTelegramWebApp(maxWait = 8000): Promise<ReturnType<typeof getTelegramWebApp>> {
   const startTime = Date.now()
-  
+  const SCRIPT_LOAD_AFTER = 2000
+
   while (Date.now() - startTime < maxWait) {
-    const tg = getTelegramWebApp()
-    if (tg) {
-      // Check if openInvoice is available - this is the key indicator
-      if (typeof tg.openInvoice === 'function') {
-        console.log('✅ openInvoice found after', Date.now() - startTime, 'ms')
-        return tg
-      }
-      // Also return if initData is present (indicates proper initialization)
-      if (tg.initData) {
-        console.log('✅ initData found after', Date.now() - startTime, 'ms')
-        return tg
+    const tg = getWebAppRaw() as ReturnType<typeof getTelegramWebApp>
+    if (tg && typeof (tg as { openInvoice?: unknown }).openInvoice === 'function') {
+      console.log('✅ openInvoice found after', Date.now() - startTime, 'ms')
+      return tg
+    }
+    if (tg && (tg as { initData?: string }).initData) {
+      const t = tg as { openInvoice?: (url: string, cb: (s: string) => void) => void }
+      if (typeof t.openInvoice === 'function') return tg
+    }
+    // After 2s without WebApp, try loading the script once (for WebViews where client didn't inject)
+    if (Date.now() - startTime >= SCRIPT_LOAD_AFTER && !getWebAppRaw()) {
+      if (!(document as unknown as { _tgScriptLoaded?: boolean })._tgScriptLoaded) {
+        (document as unknown as { _tgScriptLoaded?: boolean })._tgScriptLoaded = true
+        const script = document.createElement('script')
+        script.src = 'https://telegram.org/js/telegram-web-app.js'
+        script.async = false
+        document.head.appendChild(script)
+        await new Promise(r => setTimeout(r, 500))
       }
     }
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 150))
   }
-  
-  // Return even if we timed out - openInvoice might still work
-  const tg = getTelegramWebApp()
+
+  const tg = getWebAppRaw() as ReturnType<typeof getTelegramWebApp>
+  if (tg && typeof (tg as { openInvoice?: unknown }).openInvoice === 'function') return tg
+  console.warn('⚠️ WebApp not ready after', maxWait, 'ms')
+  return tg || null
+}
+
+/** Open invoice by URL. Prefer SDK (works on Desktop/Android when native openInvoice is missing), then window.Telegram.WebApp.openInvoice. */
+export function openInvoiceUrl(invoiceUrl: string): Promise<'paid' | 'cancelled' | 'failed' | string> {
+  return new Promise((resolve) => {
+    // 1) Try SDK first - same bridge that provided launch params; works on Desktop/Android
+    import('@telegram-apps/sdk').then((sdk) => {
+      const invoice = (sdk as { invoice?: { open?: { isAvailable?: () => boolean; (url: string, type: 'url'): Promise<string> } } }).invoice
+      if (invoice?.open?.isAvailable?.()) {
+        invoice.open(invoiceUrl, 'url')
+          .then((status) => resolve(status as 'paid' | 'cancelled' | 'failed' | string))
+          .catch(() => {
+            // SDK failed, try native
+            tryNativeOpenInvoice(invoiceUrl, resolve)
+          })
+        return
+      }
+      tryNativeOpenInvoice(invoiceUrl, resolve)
+    }).catch(() => tryNativeOpenInvoice(invoiceUrl, resolve))
+  })
+}
+
+function tryNativeOpenInvoice(
+  invoiceUrl: string,
+  resolve: (status: 'paid' | 'cancelled' | 'failed' | string) => void
+) {
+  const tg = getWebAppRaw() as { openInvoice?: (url: string, cb: (status: string) => void) => void } | null
   if (tg && typeof tg.openInvoice === 'function') {
-    console.log('⚠️ Returning WebApp after timeout, but openInvoice exists')
-    return tg
+    tg.openInvoice(invoiceUrl, (status) => resolve(status))
+    return
   }
-  
-  console.warn('⚠️ WebApp not fully initialized after timeout')
-  return tg
+  resolve('failed')
 }
 
 // Check if Telegram Stars payments are available with detailed diagnostics
@@ -144,12 +187,22 @@ export function getTelegramDebugInfo(): Record<string, unknown> {
   }
 }
 
+// Get Telegram user from native initDataUnsafe (most reliable when in Telegram app)
+export function getTelegramUserFromWebApp(): { id: number; username?: string; languageCode?: string } | null {
+  if (typeof window === 'undefined') return null
+  const tg = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id: number; username?: string; language_code?: string } } } } }).Telegram?.WebApp
+  const user = tg?.initDataUnsafe?.user
+  if (!user?.id) return null
+  return {
+    id: user.id,
+    username: user.username,
+    languageCode: user.language_code,
+  }
+}
+
 export function initTelegram() {
-  // Debug: Check if Telegram script is loaded
-  console.log('initTelegram: window.Telegram exists?', !!(window as unknown as { Telegram?: unknown }).Telegram)
-  console.log('initTelegram: window.Telegram?.WebApp exists?', !!(window as unknown as { Telegram?: { WebApp?: unknown } }).Telegram?.WebApp)
-  
-  if (isTelegramEnv) {
+  // Always try to init SDK after a short delay so script (loaded at 150ms) is ready on Desktop/Android
+  const runInit = () => {
     try {
       init()
       const tg = getTelegramWebApp()
@@ -163,30 +216,26 @@ export function initTelegram() {
       tg?.expand?.()
       tg?.ready?.()
       
-      // Force cache refresh on app start (for Telegram Mini App cache issues)
       const urlParams = new URLSearchParams(window.location.search)
       const urlVersion = urlParams.get('v')
       const lastVersion = sessionStorage.getItem('app_version')
       const currentVersion = urlVersion || import.meta.env.VITE_APP_VERSION || '2'
-      
-      // Clear all caches on every load to force fresh content
       if ('caches' in window) {
         caches.keys().then(names => names.forEach(name => caches.delete(name)))
       }
-      
-      // If URL has version param and it's different, reload
       if (urlVersion && lastVersion && urlVersion !== lastVersion) {
         sessionStorage.setItem('app_version', urlVersion)
         window.location.reload()
         return
       }
-      
-      // Set version if not set
-      if (!lastVersion) {
-        sessionStorage.setItem('app_version', currentVersion)
-      }
+      if (!lastVersion) sessionStorage.setItem('app_version', currentVersion)
     } catch (e) {
       console.error('initTelegram error:', e)
     }
+  }
+  if (isTelegramEnv) {
+    runInit()
+  } else {
+    setTimeout(runInit, 800)
   }
 }

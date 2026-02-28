@@ -29,55 +29,7 @@ export default function Talisman() {
       return
     }
     
-    // Import waitForTelegramWebApp helper
-    const { waitForTelegramWebApp } = await import('@/lib/telegram')
-    
-    // Wait for Telegram WebApp SDK to be fully initialized (especially important on mobile)
-    console.log('Talisman: Waiting for Telegram WebApp SDK...')
-    const tg = await waitForTelegramWebApp(5000) // Wait up to 5 seconds
-    
-    if (!tg) {
-      console.error('Talisman: Telegram WebApp SDK not available')
-      setError('Telegram Mini App에서 열어주세요. Stars 결제는 Telegram 앱 내에서만 사용 가능합니다.')
-      return
-    }
-    
-    console.log('Talisman: tg:', tg)
-    console.log('Talisman: tg.openInvoice:', tg.openInvoice)
-    console.log('Talisman: tg.initData:', tg.initData ? 'present' : 'missing')
-    console.log('Talisman: tg.version:', tg.version)
-    console.log('Talisman: tg.platform:', tg.platform)
-    console.log('Talisman: All methods:', Object.keys(tg))
-    
-    // Ensure WebApp is ready
-    tg.ready?.()
-    tg.expand?.()
-    
-    // Additional wait for mobile initialization
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Double-check openInvoice after wait
-    if (typeof tg.openInvoice !== 'function') {
-      console.error('Talisman: openInvoice still not available after wait')
-      console.error('Talisman: Available methods:', Object.keys(tg))
-      
-      // Try direct access as fallback
-      const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (status: string) => void) => void } } }
-      const directOpenInvoice = win.Telegram?.WebApp?.openInvoice
-      
-      if (directOpenInvoice) {
-        console.log('✅ Found openInvoice via direct access')
-        // Use direct access
-        tg.openInvoice = directOpenInvoice
-      } else {
-        const { getTelegramDebugInfo } = await import('@/lib/telegram')
-        const debugInfo = getTelegramDebugInfo()
-        const errorMsg = `결제 기능을 사용할 수 없습니다.\n\n진단 정보:\n- Telegram 버전: ${debugInfo.version || '알 수 없음'}\n- 플랫폼: ${debugInfo.platform || '알 수 없음'}\n- openInvoice 메서드: 없음\n\n다음 사항을 확인해주세요:\n1. Telegram 앱을 최신 버전으로 업데이트\n2. 앱을 완전히 종료 후 다시 실행\n3. Telegram 설정에서 Stars 구매 가능 여부 확인\n\n콘솔(F12)에서 더 자세한 정보를 확인할 수 있습니다.`
-        console.error('❌ Stars not available - detailed info:', debugInfo)
-        setError(errorMsg)
-        return
-      }
-    }
+    const { openInvoiceUrl } = await import('@/lib/telegram')
     
     setLoading(true)
     setError(null)
@@ -117,84 +69,55 @@ export default function Talisman() {
       console.log(debugMsg3)
       setDebugInfo([debugMsg1, debugMsg2, debugMsg3])
       
-      // Final check before calling openInvoice
-      if (typeof tg.openInvoice !== 'function') {
-        console.error('Talisman: openInvoice not available right before call')
-        // Try direct access one more time
-        const win = window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb: (status: string) => void) => void } } }
-        const directOpenInvoice = win.Telegram?.WebApp?.openInvoice
-        if (directOpenInvoice) {
-          console.log('✅ Using direct openInvoice access')
-          directOpenInvoice(data.invoiceLink, async (status) => {
-            handlePaymentCallback(status)
-          })
-        } else {
-          setError('결제 기능을 사용할 수 없습니다. Telegram 앱을 최신 버전으로 업데이트해주세요.')
-          setLoading(false)
-          return
-        }
-      } else {
-        tg.openInvoice(data.invoiceLink, async (status) => {
-          handlePaymentCallback(status)
-        })
-      }
+      const paymentStatus = await openInvoiceUrl(data.invoiceLink)
+      const debugMsg4 = `Payment status: ${paymentStatus}`
+      setDebugInfo([debugMsg1, debugMsg2, debugMsg3, debugMsg4])
       
-      async function handlePaymentCallback(status: string) {
-        const debugMsg4 = `Payment status: ${status}`
-        console.log(debugMsg4)
-        setDebugInfo([debugMsg1, debugMsg2, debugMsg3, debugMsg4])
-        
-        if (status === 'paid') {
-          let attempts = 0
-          const maxAttempts = 10
-          const pollInterval = 1000
-          
-          const pollPayment = async (): Promise<void> => {
-            try {
-              const checkRes = await fetch('/api/payment?action=check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  telegram_user_id: telegramUser.id,
-                  product: 'personal_talisman',
-                }),
-              })
-              
-              const checkData = await checkRes.json() as { paid?: boolean; status?: string }
-              
-              if (checkData.paid) {
-                setTalismanSelection(wish!, style!)
-                navigate('/talisman/result?paid=1')
-                return
-              }
-              
-              if (attempts < maxAttempts) {
-                attempts++
-                await new Promise(resolve => setTimeout(resolve, pollInterval))
-                return pollPayment()
-              }
-              
-              console.warn('Payment confirmed by Telegram but not yet in database. Webhook will process it.')
+      if (paymentStatus === 'paid') {
+        let attempts = 0
+        const maxAttempts = 10
+        const pollInterval = 1000
+        const pollPayment = async (): Promise<void> => {
+          try {
+            const checkRes = await fetch('/api/payment?action=check', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                telegram_user_id: telegramUser.id,
+                product: 'personal_talisman',
+              }),
+            })
+            const checkData = await checkRes.json() as { paid?: boolean; status?: string }
+            if (checkData.paid) {
               setTalismanSelection(wish!, style!)
               navigate('/talisman/result?paid=1')
-            } catch (e) {
-              console.error('Error polling payment status:', e)
-              setTalismanSelection(wish!, style!)
-              navigate('/talisman/result?paid=1')
+              return
             }
+            if (attempts < maxAttempts) {
+              attempts++
+              await new Promise(resolve => setTimeout(resolve, pollInterval))
+              return pollPayment()
+            }
+            setTalismanSelection(wish!, style!)
+            navigate('/talisman/result?paid=1')
+          } catch (e) {
+            console.error('Error polling payment status:', e)
+            setTalismanSelection(wish!, style!)
+            navigate('/talisman/result?paid=1')
           }
-          
-          await pollPayment()
-        } else {
-          setLoading(false)
-          if (status === 'failed' || status === 'cancelled') {
-            setError('Payment was cancelled or failed.')
-          } else {
-            setError(`Payment status: ${status}`)
-          }
-          setDebugInfo([debugMsg1, debugMsg2, debugMsg3, debugMsg4, `Payment failed or cancelled: ${status}`])
         }
-      })
+        await pollPayment()
+      } else {
+        setLoading(false)
+        if (paymentStatus === 'failed') {
+          setError('결제 창을 열 수 없습니다. Telegram 앱을 최신 버전으로 업데이트하거나, 휴대폰 Telegram에서 시도해 보세요.')
+        } else if (paymentStatus === 'cancelled') {
+          setError('결제가 취소되었습니다.')
+        } else {
+          setError('결제에 실패했습니다.')
+        }
+        setDebugInfo([debugMsg1, debugMsg2, debugMsg3, debugMsg4, `Payment: ${paymentStatus}`])
+      }
     } catch (e) {
       const errorMsg = (e as Error).message ?? 'Failed to process payment. Please try again.'
       console.error('Error in handleGenerate:', e)
