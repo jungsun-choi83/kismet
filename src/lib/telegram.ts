@@ -187,17 +187,40 @@ export function getTelegramDebugInfo(): Record<string, unknown> {
   }
 }
 
-// Get Telegram user from native initDataUnsafe (most reliable when in Telegram app)
+// Get Telegram user from native API (initDataUnsafe or initData string fallback)
 export function getTelegramUserFromWebApp(): { id: number; username?: string; languageCode?: string } | null {
   if (typeof window === 'undefined') return null
-  const tg = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id: number; username?: string; language_code?: string } } } } }).Telegram?.WebApp
-  const user = tg?.initDataUnsafe?.user
-  if (!user?.id) return null
-  return {
-    id: user.id,
-    username: user.username,
-    languageCode: user.language_code,
+  const tg = (window as unknown as {
+    Telegram?: { WebApp?: {
+      initDataUnsafe?: { user?: { id: number; username?: string; language_code?: string } }
+      initData?: string
+    } }
+  }).Telegram?.WebApp
+  if (!tg) return null
+
+  // 1) initDataUnsafe.user (parsed by Telegram client)
+  const u1 = tg.initDataUnsafe?.user
+  if (u1?.id) {
+    return { id: u1.id, username: u1.username, languageCode: u1.language_code }
   }
+
+  // 2) Parse initData string (fallback when initDataUnsafe not populated)
+  const raw = tg.initData
+  if (raw) {
+    try {
+      const params = new URLSearchParams(raw)
+      const userStr = params.get('user')
+      if (userStr) {
+        const parsed = JSON.parse(decodeURIComponent(userStr)) as { id?: number; username?: string; language_code?: string }
+        if (parsed?.id) {
+          return { id: parsed.id, username: parsed.username, languageCode: parsed.language_code }
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return null
 }
 
 export function initTelegram() {

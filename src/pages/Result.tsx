@@ -391,7 +391,15 @@ function ProductCard({
   const [err, setErr] = useState<string | null>(null)
 
   const handleBuy = async () => {
-    const effectiveUser = telegramUser ?? getTelegramUserFromWebApp()
+    let effectiveUser = telegramUser ?? getTelegramUserFromWebApp()
+    // Wait up to 2.5s for Telegram to inject user (initData may load late)
+    if (!effectiveUser?.id) {
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 250))
+        effectiveUser = getTelegramUserFromWebApp()
+        if (effectiveUser?.id) break
+      }
+    }
     if (!effectiveUser?.id) {
       setErr('Open from Telegram to purchase.')
       return
